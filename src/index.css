@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-canvas text-slate-800 font-body antialiased;
+}
+
+.font-figures {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .input {
+    @apply w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none;
+  }
+  .input:focus {
+    @apply border-ledger-teal;
+  }
+  .btn-primary {
+    @apply bg-ink-900 hover:bg-ink-800 text-white rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+  }
+  .btn-teal {
+    @apply bg-ledger-teal hover:bg-teal-800 text-white rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+  }
+  .btn-ghost {
+    @apply border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 2px;
+}

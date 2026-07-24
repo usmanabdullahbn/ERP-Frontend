@@ -1,0 +1,60 @@
+import { Routes, Route } from 'react-router-dom';
+import ProtectedRoute from './components/ProtectedRoute';
+
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Customers from './pages/Customers';
+import Suppliers from './pages/Suppliers';
+import Invoices from './pages/Invoices';
+import Bills from './pages/Bills';
+import Receipts from './pages/Receipts';
+import Payments from './pages/Payments';
+import Products from './pages/Products';
+import Warehouses from './pages/Warehouses';
+import Bank from './pages/Bank';
+import ChartOfAccounts from './pages/ChartOfAccounts';
+import Journal from './pages/Journal';
+import Users from './pages/Users';
+
+import TrialBalance from './pages/reports/TrialBalance';
+import ProfitAndLoss from './pages/reports/ProfitAndLoss';
+import BalanceSheet from './pages/reports/BalanceSheet';
+import StockSummary from './pages/reports/StockSummary';
+import AgedReceivables from './pages/reports/AgedReceivables';
+import AgedPayables from './pages/reports/AgedPayables';
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+
+      <Route path="/customers" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Customers /></ProtectedRoute>} />
+      <Route path="/invoices" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices /></ProtectedRoute>} />
+      <Route path="/receipts" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Receipts /></ProtectedRoute>} />
+
+      <Route path="/suppliers" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Suppliers /></ProtectedRoute>} />
+      <Route path="/bills" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills /></ProtectedRoute>} />
+      <Route path="/payments" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Payments /></ProtectedRoute>} />
+
+      <Route path="/products" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Products /></ProtectedRoute>} />
+      <Route path="/warehouses" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Warehouses /></ProtectedRoute>} />
+
+      <Route path="/bank" element={<ProtectedRoute permission={['banking.view', 'banking.manage']}><Bank /></ProtectedRoute>} />
+      <Route path="/chart-of-accounts" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><ChartOfAccounts /></ProtectedRoute>} />
+      <Route path="/journal" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><Journal /></ProtectedRoute>} />
+
+      <Route path="/reports/trial-balance" element={<ProtectedRoute permission="reports.view"><TrialBalance /></ProtectedRoute>} />
+      <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
+      <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
+      <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
+      <Route path="/reports/aged-receivables" element={<ProtectedRoute permission="reports.view"><AgedReceivables /></ProtectedRoute>} />
+      <Route path="/reports/aged-payables" element={<ProtectedRoute permission="reports.view"><AgedPayables /></ProtectedRoute>} />
+
+      <Route path="/users" element={<ProtectedRoute permission="users.manage"><Users /></ProtectedRoute>} />
+    </Routes>
+  );
+}
