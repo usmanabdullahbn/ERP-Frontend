@@ -1,0 +1,7 @@
+Opened http://localhost:5173 in the integrated browser and signed in with credentials from .env (admin@example.com / Admin@12345).
+Added a test user (Test User / testuser@example.com).
+Created a product (Test Product).
+Created a customer (Test Customer).
+Created and posted an invoice (INV-000001) for the customer using the product.
+Created a bank account and recorded a receipt (RCPT-000001) that paid the invoice.
+Opened Trial Balance and verified the new entries (debits = credits = 1,000.00).

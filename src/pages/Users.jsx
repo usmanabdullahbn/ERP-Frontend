@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -14,6 +14,7 @@ export default function Users() {
 
   const [userModal, setUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: '' });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [roleModal, setRoleModal] = useState(false);
   const [roleForm, setRoleForm] = useState({ name: '', description: '', permissions: [] });
@@ -135,7 +136,25 @@ export default function Users() {
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Email</span>
             <input required type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="input" /></label>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Password</span>
-            <input required type="password" minLength={6} value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} className="input" /></label>
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? 'text' : 'password'}
+                minLength={6}
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                className="input pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center p-1 text-slate-500 hover:text-ink-900"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </label>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Role</span>
             <select required value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="input">
               <option value="">Select…</option>
