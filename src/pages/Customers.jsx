@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Printer, Pencil } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -20,6 +20,8 @@ export default function Customers() {
 
   const [statementFor, setStatementFor] = useState(null);
   const [statement, setStatement] = useState(null);
+  const [statementFrom, setStatementFrom] = useState('');
+  const [statementTo, setStatementTo] = useState('');
 
   const load = () => api.get('/customers').then((res) => setCustomers(res.data));
   useEffect(() => { load(); }, []);
@@ -40,10 +42,36 @@ export default function Customers() {
     }
   };
 
+  const loadStatement = async (customer, from, to) => {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+
+    const { data } = await api.get(
+      `/customers/${customer._id}/statement${params.toString() ? `?${params.toString()}` : ''}`
+    );
+    setStatement(data);
+  };
+
   const openStatement = async (c) => {
     setStatementFor(c);
-    const { data } = await api.get(`/customers/${c._id}/statement`);
-    setStatement(data);
+    setStatementFrom('');
+    setStatementTo('');
+    await loadStatement(c, '', '');
+  };
+
+  const handleStatementFromChange = async (value) => {
+    setStatementFrom(value);
+    if (statementFor) await loadStatement(statementFor, value, statementTo);
+  };
+
+  const handleStatementToChange = async (value) => {
+    setStatementTo(value);
+    if (statementFor) await loadStatement(statementFor, statementFrom, value);
+  };
+
+  const printStatement = () => {
+    window.print();
   };
 
   const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -54,7 +82,18 @@ export default function Customers() {
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
     { key: 'openingBalance', label: 'Opening Bal.', align: 'right', mono: true, render: (r) => money(r.openingBalance) },
-    { key: 'status', label: 'Status', render: (r) => <Badge status={r.isActive ? 'ACTIVE' : 'INACTIVE'} /> }
+    { key: 'status', label: 'Status', render: (r) => <Badge status={r.isActive ? 'ACTIVE' : 'INACTIVE'} /> },
+    { key: 'actions', label: '', align: 'right', render: (r) => (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+          className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+          title="Edit customer"
+        >
+          <Pencil size={16} />
+        </button>
+      )
+    }
   ];
 
   return (
@@ -94,7 +133,34 @@ export default function Customers() {
 
       <Modal open={!!statementFor} onClose={() => setStatementFor(null)} title={`Statement — ${statementFor?.name || ''}`} width="max-w-2xl">
         {statement && (
-          <div>
+          <div className="print-area">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+                <Field label="From">
+                  <input
+                    type="date"
+                    value={statementFrom}
+                    onChange={(e) => void handleStatementFromChange(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+                <Field label="To">
+                  <input
+                    type="date"
+                    value={statementTo}
+                    onChange={(e) => void handleStatementToChange(e.target.value)}
+                    className="input"
+                  />
+                </Field>
+              </div>
+              <button
+                type="button"
+                onClick={printStatement}
+                className="btn-ghost inline-flex items-center gap-2 self-start whitespace-nowrap"
+              >
+                <Printer size={16} /> Print
+              </button>
+            </div>
             <div className="flex justify-between text-sm mb-3">
               <span className="text-slate-500">Opening balance</span>
               <span className="font-figures">{money(statement.openingBalance)}</span>

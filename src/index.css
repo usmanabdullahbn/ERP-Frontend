@@ -43,3 +43,170 @@ body {
   outline: 2px solid #0F766E;
   outline-offset: 2px;
 }
+
+@media print {
+  @page {
+    size: A5;
+    margin: 8mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  html, body, #root {
+    height: auto !important;
+  }
+
+  /* Hide all UI elements except the modal content */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show only the print container */
+  .print-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+  }
+
+  /* Hide sidebar and navigation */
+  nav, 
+  .sidebar,
+  [role="complementary"],
+  .topbar,
+  header,
+  .btn-ghost,
+  .btn-primary,
+  .btn-teal,
+  button:not(.no-print),
+  [class*="Sign out"] {
+    display: none !important;
+  }
+
+  /* Format document */
+  .document,
+  .invoice-document,
+  .bill-document {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-after: avoid !important;
+    background: white !important;
+  }
+
+  /* Modal styling for print */
+  .modal-content,
+  [role="dialog"] {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Table styling */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+
+  /* Text sizing for A5 */
+  body {
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+
+  h1, h2 {
+    font-size: 14px !important;
+    margin: 8px 0 !important;
+  }
+
+  p, span, td, th {
+    font-size: 11px !important;
+  }
+
+  /* Spacing */
+  .flex {
+    display: flex !important;
+  }
+
+  .flex-col {
+    flex-direction: column !important;
+  }
+
+  .gap-4 {
+    gap: 8px !important;
+  }
+
+  .gap-3 {
+    gap: 6px !important;
+  }
+
+  .gap-2 {
+    gap: 4px !important;
+  }
+
+  .py-2 {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .px-3 {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  /* Borders */
+  .border-b {
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  .border-t {
+    border-top: 1px solid #e2e8f0 !important;
+  }
+
+  .border-slate-200 {
+    border-color: #e2e8f0 !important;
+  }
+
+  .border-slate-100 {
+    border-color: #f1f5f9 !important;
+  }
+
+  /* Print-specific layout */
+  .print-break-after {
+    page-break-after: always !important;
+  }
+
+  /* Avoid cutting off content */
+  .flex-wrap {
+    flex-wrap: wrap !important;
+  }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Printer } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -24,6 +24,7 @@ export default function Invoices() {
   const [dueDate, setDueDate] = useState('');
   const [lines, setLines] = useState([{ ...emptyLine }]);
   const [error, setError] = useState('');
+  const [editingInvoice, setEditingInvoice] = useState(null);
 
   const [detail, setDetail] = useState(null);
 
@@ -61,6 +62,7 @@ export default function Invoices() {
   );
 
   const openCreate = () => {
+    setEditingInvoice(null);
     setCustomer(''); setDate(new Date().toISOString().slice(0, 10)); setDueDate('');
     setLines([{ ...emptyLine }]); setError(''); setModalOpen(true);
   };
@@ -71,8 +73,15 @@ export default function Invoices() {
     const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0);
     if (!validLines.length) return setError('Add at least one valid line item.');
     try {
-      await api.post('/invoices', { customer, date, dueDate: dueDate || undefined, items: validLines, postNow });
+      const payload = { customer, date, dueDate: dueDate || undefined, items: validLines, notes: editingInvoice?.notes || '', postNow };
+      if (editingInvoice) {
+        await api.put(`/invoices/${editingInvoice._id}`, payload);
+      } else {
+        await api.post('/invoices', payload);
+      }
+      setEditingInvoice(null);
       setModalOpen(false);
+      setDetail(null);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save invoice.');
@@ -82,6 +91,38 @@ export default function Invoices() {
   const openDetail = async (inv) => {
     const { data } = await api.get(`/invoices/${inv._id}`);
     setDetail(data);
+  };
+
+  const openEdit = async (inv) => {
+    const { data } = await api.get(`/invoices/${inv._id}`);
+    setEditingInvoice(data);
+    setCustomer(data.customer?._id || '');
+    setDate(data.date ? new Date(data.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 10) : '');
+    setLines(data.items.map((item) => ({
+      product: item.product?._id || item.product,
+      warehouse: item.warehouse?._id || item.warehouse,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      taxRate: item.taxRate
+    })));
+    setError('');
+    setModalOpen(true);
+  };
+
+  const deleteInvoice = async (id) => {
+    if (!confirm('Delete this invoice? Only draft invoices can be deleted.')) return;
+    try {
+      await api.delete(`/invoices/${id}`);
+      if (detail?._id === id) setDetail(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not delete invoice.');
+    }
+  };
+
+  const printInvoice = () => {
+    window.print();
   };
 
   const postInvoice = async (id) => {
@@ -107,7 +148,28 @@ export default function Invoices() {
     { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'grandTotal', label: 'Total', align: 'right', mono: true, render: (r) => money(r.grandTotal) },
     { key: 'balanceDue', label: 'Balance Due', align: 'right', mono: true, render: (r) => money(r.grandTotal - r.amountPaid) },
-    { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> }
+    { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
+    { key: 'actions', label: '', align: 'right', render: (r) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+            title="Edit invoice"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); deleteInvoice(r._id); }}
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
+            title="Delete invoice"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -121,7 +183,7 @@ export default function Invoices() {
     >
       <DataTable columns={columns} data={invoices} onRowClick={openDetail} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Invoice" width="max-w-3xl">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingInvoice ? 'Edit Invoice' : 'New Invoice'} width="max-w-3xl">
         <div className="flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-3 gap-3">
@@ -183,21 +245,66 @@ export default function Invoices() {
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Invoice ${detail?.invoiceNumber || ''}`} width="max-w-2xl">
         {detail && (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between text-sm">
+          <div className="invoice-document flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
               <div>
                 <p className="text-slate-500">Customer</p>
                 <p className="font-medium">{detail.customer?.name}</p>
               </div>
-              <div className="text-right">
-                <Badge status={detail.status} />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={printInvoice}
+                  className="btn-ghost inline-flex items-center gap-2"
+                >
+                  <Printer size={16} /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openEdit(detail)}
+                  className="btn-ghost inline-flex items-center gap-2"
+                >
+                  <Pencil size={16} /> Edit
+                </button>
+                {detail.status === 'DRAFT' && (
+                  <button
+                    type="button"
+                    onClick={() => deleteInvoice(detail._id)}
+                    className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                )}
               </div>
             </div>
-            <table className="w-full text-sm">
+            
+            <div className="space-y-3">
+              <h1 className="text-xl font-semibold">Sales Invoice</h1>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">Invoice Number</p>
+                  <p className="font-medium">{detail.invoiceNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs">Date</p>
+                  <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-slate-500 text-xs">Customer</p>
+                <p className="font-medium">{detail.customer?.name}</p>
+              </div>
+            </div>
+
+            <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                  <th className="py-2">Item</th><th>Warehouse</th><th className="text-right">Qty</th>
-                  <th className="text-right">Price</th><th className="text-right">Total</th>
+                <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                  <th className="py-2 font-semibold">Item</th>
+                  <th className="font-semibold">Warehouse</th>
+                  <th className="text-right font-semibold">Qty</th>
+                  <th className="text-right font-semibold">Price</th>
+                  <th className="text-right font-semibold">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,17 +319,30 @@ export default function Invoices() {
                 ))}
               </tbody>
             </table>
-            <div className="flex justify-end text-sm gap-6">
-              <span>Subtotal <span className="font-figures ml-2">{money(detail.subTotal)}</span></span>
-              <span>Tax <span className="font-figures ml-2">{money(detail.taxTotal)}</span></span>
-              <span className="font-medium">Total <span className="font-figures ml-2">{money(detail.grandTotal)}</span></span>
-            </div>
-            {canManage && (
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                {detail.status === 'DRAFT' && <button onClick={() => postInvoice(detail._id)} className="btn-teal">Post to ledger</button>}
-                {detail.status !== 'VOID' && detail.status !== 'DRAFT' && <button onClick={() => voidInvoice(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
+
+            <div className="border-t border-slate-200 pt-3 space-y-1">
+              <div className="flex justify-end gap-6 text-sm">
+                <span className="text-slate-600">Subtotal</span>
+                <span className="font-figures w-24 text-right">{money(detail.subTotal)}</span>
               </div>
-            )}
+              <div className="flex justify-end gap-6 text-sm">
+                <span className="text-slate-600">Tax</span>
+                <span className="font-figures w-24 text-right">{money(detail.taxTotal)}</span>
+              </div>
+              <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
+                <span>Total</span>
+                <span className="font-figures w-24 text-right">{money(detail.grandTotal)}</span>
+              </div>
+            </div>
+
+            <div className="print:hidden">
+              {canManage && (
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                  {detail.status === 'DRAFT' && <button onClick={() => postInvoice(detail._id)} className="btn-teal">Post to ledger</button>}
+                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && <button onClick={() => voidInvoice(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
