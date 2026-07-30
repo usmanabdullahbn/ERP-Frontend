@@ -21,6 +21,7 @@ export default function Payments() {
   const [supplier, setSupplier] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
+  const [reference, setReference] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
@@ -65,10 +66,36 @@ export default function Payments() {
     }
   }, [supplier]);
 
+  useEffect(() => {
+    if (!editingPayment && amount && openBills.length > 0) {
+      setAllocations(autoAllocateBills(amount, openBills));
+    }
+  }, [amount, openBills, editingPayment]);
+
+  const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+  const autoAllocateBills = (amt, bills) => {
+    const amountValue = round2(Number(amt) || 0);
+    const allocations = {};
+    let remaining = amountValue;
+    bills.forEach((bill) => {
+      if (remaining <= 0) return;
+      const due = round2(Number(bill.grandTotal) - Number(bill.amountPaid));
+      if (due <= 0) return;
+      const alloc = Math.min(remaining, due);
+      if (alloc > 0) {
+        allocations[bill._id] = alloc;
+        remaining = round2(remaining - alloc);
+      }
+    });
+    return allocations;
+  };
+
   const resetForm = () => {
     setSupplier('');
     setBankAccount('');
     setAmount('');
+    setReference('');
     setDate(new Date().toISOString().slice(0, 10));
     setMethod('BANK_TRANSFER');
     setAllocations({});
@@ -86,6 +113,7 @@ export default function Payments() {
     setSupplier(typeof payment.supplier === 'string' ? payment.supplier : payment.supplier?._id || '');
     setBankAccount(typeof payment.bankAccount === 'string' ? payment.bankAccount : payment.bankAccount?._id || '');
     setAmount(payment.amount || '');
+    setReference(payment.reference || '');
     setDate(payment.date ? new Date(payment.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
     setMethod(payment.method || 'BANK_TRANSFER');
     setAllocations({});
@@ -118,7 +146,7 @@ export default function Payments() {
     setError('');
     const allocList = Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([bill, amt]) => ({ bill, amount: Number(amt) }));
     try {
-      const payload = { supplier, bankAccount, amount: Number(amount), date, method, allocations: allocList };
+      const payload = { supplier, bankAccount, amount: Number(amount), reference, date, method, allocations: allocList };
       if (editingPayment) {
         await api.put(`/payments/${editingPayment._id}`, payload);
       } else {
@@ -195,6 +223,16 @@ export default function Payments() {
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Ref</span>
+              <input value={reference} onChange={(e) => setReference(e.target.value)} className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Date</span>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Pay from</span>
               <select required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="input">
                 <option value="">Select…</option>
@@ -208,15 +246,12 @@ export default function Payments() {
                 <option value="CASH">Cash</option>
                 <option value="CHEQUE">Cheque</option>
                 <option value="CARD">Card</option>
+                <option value="ONLINE">Online</option>
                 <option value="OTHER">Other</option>
               </select>
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">Date</span>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
-            </label>
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Amount Paid</span>
               <input required type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />

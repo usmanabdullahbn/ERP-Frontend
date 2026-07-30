@@ -21,6 +21,7 @@ export default function Receipts() {
   const [customer, setCustomer] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
+  const [reference, setReference] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
@@ -65,10 +66,36 @@ export default function Receipts() {
     }
   }, [customer]);
 
+  useEffect(() => {
+    if (!editingReceipt && amount && openInvoices.length > 0) {
+      setAllocations(autoAllocateInvoices(amount, openInvoices));
+    }
+  }, [amount, openInvoices, editingReceipt]);
+
+  const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+  const autoAllocateInvoices = (amt, invoices) => {
+    const amountValue = round2(Number(amt) || 0);
+    const allocations = {};
+    let remaining = amountValue;
+    invoices.forEach((invoice) => {
+      if (remaining <= 0) return;
+      const due = round2(Number(invoice.grandTotal) - Number(invoice.amountPaid));
+      if (due <= 0) return;
+      const alloc = Math.min(remaining, due);
+      if (alloc > 0) {
+        allocations[invoice._id] = alloc;
+        remaining = round2(remaining - alloc);
+      }
+    });
+    return allocations;
+  };
+
   const resetForm = () => {
     setCustomer('');
     setBankAccount('');
     setAmount('');
+    setReference('');
     setDate(new Date().toISOString().slice(0, 10));
     setMethod('BANK_TRANSFER');
     setAllocations({});
@@ -86,6 +113,7 @@ export default function Receipts() {
     setCustomer(typeof receipt.customer === 'string' ? receipt.customer : receipt.customer?._id || '');
     setBankAccount(typeof receipt.bankAccount === 'string' ? receipt.bankAccount : receipt.bankAccount?._id || '');
     setAmount(receipt.amount || '');
+    setReference(receipt.reference || '');
     setDate(receipt.date ? new Date(receipt.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
     setMethod(receipt.method || 'BANK_TRANSFER');
     setAllocations({});
@@ -118,7 +146,7 @@ export default function Receipts() {
     setError('');
     const allocList = Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([invoice, amt]) => ({ invoice, amount: Number(amt) }));
     try {
-      const payload = { customer, bankAccount, amount: Number(amount), date, method, allocations: allocList };
+      const payload = { customer, bankAccount, amount: Number(amount), reference, date, method, allocations: allocList };
       if (editingReceipt) {
         await api.put(`/receipts/${editingReceipt._id}`, payload);
       } else {
@@ -195,12 +223,18 @@ export default function Receipts() {
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Ref</span>
+              <input value={reference} onChange={(e) => setReference(e.target.value)} className="input" />
+            </label>
+            <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Deposit to</span>
               <select required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="input">
                 <option value="">Select…</option>
                 {bankAccounts.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}
               </select>
             </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Method</span>
               <select value={method} onChange={(e) => setMethod(e.target.value)} className="input">
@@ -208,15 +242,16 @@ export default function Receipts() {
                 <option value="CASH">Cash</option>
                 <option value="CHEQUE">Cheque</option>
                 <option value="CARD">Card</option>
+                <option value="ONLINE">Online</option>
                 <option value="OTHER">Other</option>
               </select>
             </label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Date</span>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
             </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Amount Received</span>
               <input required type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />
