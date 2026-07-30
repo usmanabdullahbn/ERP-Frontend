@@ -4,6 +4,7 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 
 export default function Users() {
@@ -20,6 +21,9 @@ export default function Users() {
   const [roleForm, setRoleForm] = useState({ name: '', description: '', permissions: [] });
 
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
 
   const load = () => {
     api.get('/users').then((res) => setUsers(res.data));
@@ -49,9 +53,19 @@ export default function Users() {
   };
 
   const removeUser = async (u) => {
-    if (!confirm(`Delete user ${u.name}?`)) return;
-    await api.delete(`/users/${u._id}`);
-    load();
+    setConfirmMessage(`Delete user ${u.name}?`);
+    setConfirmAction(() => () => performRemoveUser(u._id));
+    setConfirmOpen(true);
+  };
+
+  const performRemoveUser = async (id) => {
+    try {
+      await api.delete(`/users/${id}`);
+      load();
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not delete user.');
+    }
   };
 
   const saveRole = async (e) => {
@@ -75,12 +89,18 @@ export default function Users() {
   };
 
   const removeRole = async (r) => {
-    if (!confirm(`Delete role ${r.name}?`)) return;
+    setConfirmMessage(`Delete role ${r.name}?`);
+    setConfirmAction(() => () => performRemoveRole(r._id));
+    setConfirmOpen(true);
+  };
+
+  const performRemoveRole = async (id) => {
     try {
-      await api.delete(`/roles/${r._id}`);
+      await api.delete(`/roles/${id}`);
       load();
+      setConfirmOpen(false);
     } catch (err) {
-      alert(err.response?.data?.message || 'Could not delete role.');
+      setError(err.response?.data?.message || 'Could not delete role.');
     }
   };
 

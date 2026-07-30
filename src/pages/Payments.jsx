@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 
 export default function Payments() {
@@ -16,6 +17,7 @@ export default function Payments() {
   const [openBills, setOpenBills] = useState([]);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
   const [supplier, setSupplier] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
@@ -23,6 +25,8 @@ export default function Payments() {
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const load = () => api.get('/payments').then((res) => setPayments(res.data));
 
@@ -32,20 +36,79 @@ export default function Payments() {
     api.get('/bank/accounts').then((res) => setBankAccounts(res.data));
   }, []);
 
+  const loadOpenBills = async (supplierId, currentPayment = null) => {
+    if (!supplierId) {
+      setOpenBills([]);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/bills?supplier=${supplierId}`);
+      const currentAllocations = currentPayment?.allocations || [];
+      const currentBillIds = new Set(currentAllocations.map((alloc) => alloc.bill?.toString?.() || alloc.bill));
+      const selectableBills = res.data.filter((bill) => {
+        const isOpen = ['POSTED', 'PARTIALLY_PAID'].includes(bill.status);
+        const hasExistingAllocation = currentBillIds.has(bill._id);
+        return isOpen || hasExistingAllocation;
+      });
+      setOpenBills(selectableBills);
+    } catch {
+      setOpenBills([]);
+    }
+  };
+
   useEffect(() => {
     if (supplier) {
-      api.get(`/bills?supplier=${supplier}`).then((res) => {
-        setOpenBills(res.data.filter((b) => ['POSTED', 'PARTIALLY_PAID'].includes(b.status)));
-        setAllocations({});
-      });
+      loadOpenBills(supplier);
     } else {
       setOpenBills([]);
     }
   }, [supplier]);
 
+  const resetForm = () => {
+    setSupplier('');
+    setBankAccount('');
+    setAmount('');
+    setDate(new Date().toISOString().slice(0, 10));
+    setMethod('BANK_TRANSFER');
+    setAllocations({});
+    setError('');
+  };
+
   const openCreate = () => {
-    setSupplier(''); setBankAccount(''); setAmount(''); setDate(new Date().toISOString().slice(0, 10));
-    setMethod('BANK_TRANSFER'); setAllocations({}); setError(''); setModalOpen(true);
+    setEditingPayment(null);
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const openEdit = async (payment) => {
+    setEditingPayment(payment);
+    setSupplier(typeof payment.supplier === 'string' ? payment.supplier : payment.supplier?._id || '');
+    setBankAccount(typeof payment.bankAccount === 'string' ? payment.bankAccount : payment.bankAccount?._id || '');
+    setAmount(payment.amount || '');
+    setDate(payment.date ? new Date(payment.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setMethod(payment.method || 'BANK_TRANSFER');
+    setAllocations({});
+    setError('');
+
+    const supplierId = typeof payment.supplier === 'string' ? payment.supplier : payment.supplier?._id;
+    if (supplierId) {
+      await loadOpenBills(supplierId, payment);
+      const initialAllocations = {};
+      (payment.allocations || []).forEach((alloc) => {
+        if (alloc.bill) initialAllocations[alloc.bill] = alloc.amount;
+      });
+      setAllocations(initialAllocations);
+    } else {
+      setOpenBills([]);
+    }
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingPayment(null);
+    resetForm();
   };
 
   const allocatedTotal = Object.values(allocations).reduce((s, v) => s + (Number(v) || 0), 0);
@@ -55,11 +118,31 @@ export default function Payments() {
     setError('');
     const allocList = Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([bill, amt]) => ({ bill, amount: Number(amt) }));
     try {
-      await api.post('/payments', { supplier, bankAccount, amount: Number(amount), date, method, allocations: allocList });
-      setModalOpen(false);
+      const payload = { supplier, bankAccount, amount: Number(amount), date, method, allocations: allocList };
+      if (editingPayment) {
+        await api.put(`/payments/${editingPayment._id}`, payload);
+      } else {
+        await api.post('/payments', payload);
+      }
+      closeModal();
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save payment.');
+    }
+  };
+
+  const handleDeleteClick = (id) => {
+    setConfirmAction(() => () => performDelete(id));
+    setConfirmOpen(true);
+  };
+
+  const performDelete = async (id) => {
+    try {
+      await api.delete(`/payments/${id}`);
+      load();
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not delete payment.');
     }
   };
 
@@ -71,7 +154,22 @@ export default function Payments() {
     { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'bankAccount', label: 'Paid from', render: (r) => r.bankAccount?.name },
     { key: 'amount', label: 'Amount', align: 'right', mono: true, render: (r) => money(r.amount) },
-    { key: 'method', label: 'Method' }
+    { key: 'method', label: 'Method' },
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'right',
+      render: (r) => (
+        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+          <button type="button" onClick={() => openEdit(r)} className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100" title="Edit payment">
+            <Pencil size={14} />
+          </button>
+          <button type="button" onClick={() => handleDeleteClick(r._id)} className="rounded-md border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50" title="Delete payment">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -85,12 +183,12 @@ export default function Payments() {
     >
       <DataTable columns={columns} data={payments} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Record Payment">
+      <Modal open={modalOpen} onClose={closeModal} title={editingPayment ? 'Edit Payment' : 'Record Payment'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <label className="block">
             <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
-            <select required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
+            <select required value={supplier} onChange={(e) => { setSupplier(e.target.value); setAllocations({}); if (e.target.value) loadOpenBills(e.target.value); else setOpenBills([]); }} className="input">
               <option value="">Select…</option>
               {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
             </select>
@@ -145,9 +243,20 @@ export default function Payments() {
             </div>
           )}
 
-          <button type="submit" className="mt-2 btn-teal">Save payment</button>
+          <button type="submit" className="mt-2 btn-teal">{editingPayment ? 'Save changes' : 'Save payment'}</button>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Payment"
+        message="Delete this payment? This will reverse all allocations and the journal entry."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        danger
+        onConfirm={confirmAction}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </PageLayout>
   );
 }

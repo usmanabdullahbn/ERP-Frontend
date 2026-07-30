@@ -4,6 +4,7 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,6 +27,9 @@ export default function Bills() {
   const [error, setError] = useState('');
   const [editingBill, setEditingBill] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
 
   const load = () => api.get('/bills').then((res) => setBills(res.data));
 
@@ -109,34 +113,39 @@ export default function Bills() {
     setModalOpen(true);
   };
 
-  const deleteBill = async (id) => {
-    if (!confirm('Delete this bill? Only draft bills can be deleted.')) return;
+  const handleDeleteClick = (id) => {
+    setConfirmMessage('Delete this bill? Only draft bills can be deleted.');
+    setConfirmAction(() => () => performDelete(id));
+    setConfirmOpen(true);
+  };
+
+  const performDelete = async (id) => {
     try {
       await api.delete(`/bills/${id}`);
       if (detail?._id === id) setDetail(null);
       load();
+      setConfirmOpen(false);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not delete bill.');
     }
   };
 
-  const printBill = () => {
-    window.print();
+  const handleVoidClick = (id) => {
+    setConfirmMessage('Void this bill? This creates a reversing entry.');
+    setConfirmAction(() => () => performVoid(id));
+    setConfirmOpen(true);
   };
 
-  const postBill = async (id) => {
-    await api.post(`/bills/${id}/post`);
-    const { data } = await api.get(`/bills/${id}`);
-    setDetail(data);
-    load();
-  };
-
-  const voidBill = async (id) => {
-    if (!confirm('Void this bill? This creates a reversing entry.')) return;
-    await api.post(`/bills/${id}/void`);
-    const { data } = await api.get(`/bills/${id}`);
-    setDetail(data);
-    load();
+  const performVoid = async (id) => {
+    try {
+      await api.post(`/bills/${id}/void`);
+      const { data } = await api.get(`/bills/${id}`);
+      setDetail(data);
+      load();
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not void bill.');
+    }
   };
 
   const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -160,7 +169,7 @@ export default function Bills() {
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); deleteBill(r._id); }}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
             className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
             title="Delete bill"
           >
@@ -268,7 +277,7 @@ export default function Bills() {
                 {detail.status === 'DRAFT' && (
                   <button
                     type="button"
-                    onClick={() => deleteBill(detail._id)}
+                    onClick={() => handleDeleteClick(detail._id)}
                     className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
                   >
                     <Trash2 size={16} /> Delete
@@ -338,13 +347,24 @@ export default function Bills() {
               {canManage && (
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                   {detail.status === 'DRAFT' && <button onClick={() => postBill(detail._id)} className="btn-teal">Post to ledger</button>}
-                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && <button onClick={() => voidBill(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
+                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && <button onClick={() => handleVoidClick(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
                 </div>
               )}
             </div>
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Confirm Action"
+        message={confirmMessage}
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        danger
+        onConfirm={confirmAction}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </PageLayout>
   );
 }

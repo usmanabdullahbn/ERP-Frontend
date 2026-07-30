@@ -4,6 +4,7 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,6 +28,9 @@ export default function Invoices() {
   const [editingInvoice, setEditingInvoice] = useState(null);
 
   const [detail, setDetail] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
 
   const load = () => api.get('/invoices').then((res) => setInvoices(res.data));
 
@@ -110,34 +114,39 @@ export default function Invoices() {
     setModalOpen(true);
   };
 
-  const deleteInvoice = async (id) => {
-    if (!confirm('Delete this invoice? Only draft invoices can be deleted.')) return;
+  const handleDeleteClick = (id) => {
+    setConfirmMessage('Delete this invoice? Only draft invoices can be deleted.');
+    setConfirmAction(() => () => performDelete(id));
+    setConfirmOpen(true);
+  };
+
+  const performDelete = async (id) => {
     try {
       await api.delete(`/invoices/${id}`);
       if (detail?._id === id) setDetail(null);
       load();
+      setConfirmOpen(false);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not delete invoice.');
     }
   };
 
-  const printInvoice = () => {
-    window.print();
+  const handleVoidClick = (id) => {
+    setConfirmMessage('Void this invoice? This creates a reversing entry.');
+    setConfirmAction(() => () => performVoid(id));
+    setConfirmOpen(true);
   };
 
-  const postInvoice = async (id) => {
-    await api.post(`/invoices/${id}/post`);
-    const { data } = await api.get(`/invoices/${id}`);
-    setDetail(data);
-    load();
-  };
-
-  const voidInvoice = async (id) => {
-    if (!confirm('Void this invoice? This creates a reversing entry.')) return;
-    await api.post(`/invoices/${id}/void`);
-    const { data } = await api.get(`/invoices/${id}`);
-    setDetail(data);
-    load();
+  const performVoid = async (id) => {
+    try {
+      await api.post(`/invoices/${id}/void`);
+      const { data } = await api.get(`/invoices/${id}`);
+      setDetail(data);
+      load();
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not void invoice.');
+    }
   };
 
   const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -161,7 +170,7 @@ export default function Invoices() {
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); deleteInvoice(r._id); }}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
             className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
             title="Delete invoice"
           >
