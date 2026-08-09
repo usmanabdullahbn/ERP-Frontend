@@ -11,8 +11,10 @@ import { useAuth } from '../context/AuthContext';
 const emptyLine = { product: '', warehouse: '', quantity: 1, unitPrice: 0, taxRate: 0 };
 
 export default function Invoices() {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const canManage = hasPermission('sales.manage');
+  const isAdmin = user?.role?.permissions?.includes('*') || user?.role?.name === 'Admin' || user?.role === 'Admin';
+  const canDeleteInvoice = (invoice) => canManage && (invoice?.status === 'DRAFT' || isAdmin);
 
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -114,8 +116,11 @@ export default function Invoices() {
     setModalOpen(true);
   };
 
-  const handleDeleteClick = (id) => {
-    setConfirmMessage('Delete this invoice? Only draft invoices can be deleted.');
+  const handleDeleteClick = (id, status) => {
+    const message = status !== 'DRAFT' && isAdmin
+      ? 'Delete this invoice? Admins can remove non-draft invoices.'
+      : 'Delete this invoice? Only draft invoices can be deleted.';
+    setConfirmMessage(message);
     setConfirmAction(() => () => performDelete(id));
     setConfirmOpen(true);
   };
@@ -168,14 +173,16 @@ export default function Invoices() {
           >
             <Pencil size={16} />
           </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
-            title="Delete invoice"
-          >
-            <Trash2 size={16} />
-          </button>
+          {canDeleteInvoice(r) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id, r.status); }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
+              title="Delete invoice"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       )
     }
@@ -275,10 +282,10 @@ export default function Invoices() {
                 >
                   <Pencil size={16} /> Edit
                 </button>
-                {detail.status === 'DRAFT' && (
+                {canDeleteInvoice(detail) && (
                   <button
                     type="button"
-                    onClick={() => deleteInvoice(detail._id)}
+                    onClick={() => handleDeleteClick(detail._id, detail.status)}
                     className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
                   >
                     <Trash2 size={16} /> Delete
@@ -355,6 +362,19 @@ export default function Invoices() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        open={confirmOpen}
+        onConfirm={confirmAction}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setConfirmAction(null);
+        }}
+        message={confirmMessage}
+        title="Delete invoice"
+        confirmLabel="Delete"
+        danger
+      />
     </PageLayout>
   );
 }
