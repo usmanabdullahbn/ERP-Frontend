@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney } from '../components/ui';
 
 const empty = { name: '', email: '', phone: '', address: '', taxNumber: '', openingBalance: 0, creditLimit: 0 };
 
@@ -17,13 +18,15 @@ export default function Customers() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const [statementFor, setStatementFor] = useState(null);
   const [statement, setStatement] = useState(null);
   const [statementFrom, setStatementFrom] = useState('');
   const [statementTo, setStatementTo] = useState('');
 
-  const load = () => api.get('/customers').then((res) => setCustomers(res.data));
+  const load = () => api.get('/customers').then((res) => setCustomers(res.data)).catch(() => setLoadError('Could not load customers.'));
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
@@ -31,7 +34,9 @@ export default function Customers() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+    setSubmitting(true);
     try {
       if (editing) await api.put(`/customers/${editing._id}`, form);
       else await api.post('/customers', form);
@@ -39,6 +44,8 @@ export default function Customers() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save customer.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,7 +81,7 @@ export default function Customers() {
     window.print();
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'code', label: 'Code' },
@@ -105,9 +112,10 @@ export default function Customers() {
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={customers} onRowClick={openStatement} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Customer' : 'New Customer'}>
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editing ? 'Edit Customer' : 'New Customer'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <Field label="Name"><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" /></Field>
@@ -118,15 +126,15 @@ export default function Customers() {
           <Field label="Address"><textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" rows={2} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tax Number"><input value={form.taxNumber} onChange={(e) => setForm({ ...form, taxNumber: e.target.value })} className="input" /></Field>
-            <Field label="Credit Limit"><input type="number" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} className="input font-figures" /></Field>
+            <Field label="Credit Limit"><input type="number" min="0" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} className="input font-figures" /></Field>
           </div>
           {!editing && (
             <Field label="Opening Balance (amount owed to you)">
-              <input type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} className="input font-figures" />
+              <input type="number" min="0" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} className="input font-figures" />
             </Field>
           )}
-          <button type="submit" className="mt-2 bg-ledger-teal text-white rounded-lg py-2 text-sm font-medium hover:bg-teal-800">
-            {editing ? 'Save changes' : 'Create customer'}
+          <button type="submit" disabled={submitting} className="mt-2 bg-ledger-teal text-white rounded-lg py-2 text-sm font-medium hover:bg-teal-800 disabled:opacity-60">
+            {submitting ? 'Saving…' : editing ? 'Save changes' : 'Create customer'}
           </button>
         </form>
       </Modal>
@@ -134,7 +142,7 @@ export default function Customers() {
       <Modal open={!!statementFor} onClose={() => setStatementFor(null)} title={`Statement — ${statementFor?.name || ''}`} width="max-w-2xl">
         {statement && (
           <div className="print-area">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4 print:hidden">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <Field label="From">
                   <input

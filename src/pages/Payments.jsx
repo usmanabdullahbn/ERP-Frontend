@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney, todayLocalISODate } from '../components/ui';
 
 export default function Payments() {
   const { hasPermission } = useAuth();
@@ -15,6 +16,7 @@ export default function Payments() {
   const [suppliers, setSuppliers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [openBills, setOpenBills] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
@@ -22,19 +24,21 @@ export default function Payments() {
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISODate());
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
+  const [allocationsTouched, setAllocationsTouched] = useState(false);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  const load = () => api.get('/payments').then((res) => setPayments(res.data));
+  const load = () => api.get('/payments').then((res) => setPayments(res.data)).catch(() => setLoadError('Could not load payments.'));
 
   useEffect(() => {
     load();
-    api.get('/suppliers').then((res) => setSuppliers(res.data));
-    api.get('/bank/accounts').then((res) => setBankAccounts(res.data));
+    api.get('/suppliers').then((res) => setSuppliers(res.data)).catch(() => setLoadError('Could not load suppliers.'));
+    api.get('/bank/accounts').then((res) => setBankAccounts(res.data)).catch(() => setLoadError('Could not load bank accounts.'));
   }, []);
 
   const loadOpenBills = async (supplierId, currentPayment = null) => {
@@ -67,10 +71,10 @@ export default function Payments() {
   }, [supplier]);
 
   useEffect(() => {
-    if (!editingPayment && amount && openBills.length > 0) {
+    if (!editingPayment && !allocationsTouched && amount && openBills.length > 0) {
       setAllocations(autoAllocateBills(amount, openBills));
     }
-  }, [amount, openBills, editingPayment]);
+  }, [amount, openBills, editingPayment, allocationsTouched]);
 
   const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -96,9 +100,10 @@ export default function Payments() {
     setBankAccount('');
     setAmount('');
     setReference('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayLocalISODate());
     setMethod('BANK_TRANSFER');
     setAllocations({});
+    setAllocationsTouched(false);
     setError('');
   };
 
@@ -114,9 +119,10 @@ export default function Payments() {
     setBankAccount(typeof payment.bankAccount === 'string' ? payment.bankAccount : payment.bankAccount?._id || '');
     setAmount(payment.amount || '');
     setReference(payment.reference || '');
-    setDate(payment.date ? new Date(payment.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setDate(payment.date ? new Date(payment.date).toISOString().slice(0, 10) : todayLocalISODate());
     setMethod(payment.method || 'BANK_TRANSFER');
     setAllocations({});
+    setAllocationsTouched(true);
     setError('');
 
     const supplierId = typeof payment.supplier === 'string' ? payment.supplier : payment.supplier?._id;
@@ -143,8 +149,10 @@ export default function Payments() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
     const allocList = Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([bill, amt]) => ({ bill, amount: Number(amt) }));
+    setSubmitting(true);
     try {
       const payload = { supplier, bankAccount, amount: Number(amount), reference, date, method, allocations: allocList };
       if (editingPayment) {
@@ -156,6 +164,8 @@ export default function Payments() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save payment.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -174,7 +184,7 @@ export default function Payments() {
     }
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'paymentNumber', label: 'Payment #' },
@@ -209,14 +219,15 @@ export default function Payments() {
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={payments} />
 
-      <Modal open={modalOpen} onClose={closeModal} title={editingPayment ? 'Edit Payment' : 'Record Payment'}>
+      <Modal open={modalOpen} onClose={() => !submitting && closeModal()} title={editingPayment ? 'Edit Payment' : 'Record Payment'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <label className="block">
             <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
-            <select required value={supplier} onChange={(e) => { setSupplier(e.target.value); setAllocations({}); if (e.target.value) loadOpenBills(e.target.value); else setOpenBills([]); }} className="input">
+            <select required value={supplier} onChange={(e) => { setSupplier(e.target.value); setAllocations({}); setAllocationsTouched(false); if (e.target.value) loadOpenBills(e.target.value); else setOpenBills([]); }} className="input">
               <option value="">Select…</option>
               {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
             </select>
@@ -254,7 +265,7 @@ export default function Payments() {
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Amount Paid</span>
-              <input required type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />
+              <input required type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />
             </label>
           </div>
 
@@ -267,9 +278,10 @@ export default function Payments() {
                     <span>{b.billNumber} <span className="text-slate-400">({money(b.grandTotal - b.amountPaid)} due)</span></span>
                     <input
                       type="number"
+                      min="0"
                       className="input font-figures w-28 py-1"
                       value={allocations[b._id] || ''}
-                      onChange={(e) => setAllocations({ ...allocations, [b._id]: e.target.value })}
+                      onChange={(e) => { setAllocationsTouched(true); setAllocations({ ...allocations, [b._id]: e.target.value }); }}
                     />
                   </div>
                 ))}
@@ -278,7 +290,7 @@ export default function Payments() {
             </div>
           )}
 
-          <button type="submit" className="mt-2 btn-teal">{editingPayment ? 'Save changes' : 'Save payment'}</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : editingPayment ? 'Save changes' : 'Save payment'}</button>
         </form>
       </Modal>
 

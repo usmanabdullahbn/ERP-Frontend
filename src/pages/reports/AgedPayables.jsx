@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
+import { formatMoney } from '../../components/ui';
 
 export default function AgedPayables() {
   const [rows, setRows] = useState([]);
-  useEffect(() => { api.get('/reports/aged-payables').then((res) => setRows(res.data)); }, []);
+  const [error, setError] = useState('');
+  useEffect(() => { api.get('/reports/aged-payables').then((res) => setRows(res.data)).catch(() => setError('Could not load aged payables.')); }, []);
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'supplier', label: 'Supplier' },
@@ -20,6 +22,7 @@ export default function AgedPayables() {
 
   return (
     <PageLayout title="Aged Payables">
+      {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <DataTable columns={columns} data={rows} />
     </PageLayout>
   );

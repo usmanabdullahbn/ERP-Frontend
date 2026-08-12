@@ -15,13 +15,19 @@ export default function Warehouses() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  const load = () => api.get('/warehouses').then((res) => setWarehouses(res.data));
+  const load = () => api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setLoadError('Could not load warehouses.'));
   useEffect(() => { load(); }, []);
+
+  const openCreate = () => { setForm(empty); setError(''); setModalOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+    setSubmitting(true);
     try {
       await api.post('/warehouses', form);
       setModalOpen(false);
@@ -29,6 +35,8 @@ export default function Warehouses() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save warehouse.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -43,14 +51,15 @@ export default function Warehouses() {
     <PageLayout
       title="Warehouses"
       actions={canManage && (
-        <button onClick={() => setModalOpen(true)} className="flex items-center gap-1.5 btn-primary">
+        <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
           <Plus size={15} /> New Warehouse
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={warehouses} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Warehouse">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Warehouse">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <label className="block">
@@ -65,7 +74,7 @@ export default function Warehouses() {
             <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} />
             Set as default warehouse
           </label>
-          <button type="submit" className="mt-2 btn-teal">Create warehouse</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create warehouse'}</button>
         </form>
       </Modal>
     </PageLayout>

@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney, todayLocalISODate } from '../components/ui';
 
 export default function Receipts() {
   const { hasPermission } = useAuth();
@@ -15,6 +16,7 @@ export default function Receipts() {
   const [customers, setCustomers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [openInvoices, setOpenInvoices] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState(null);
@@ -22,19 +24,21 @@ export default function Receipts() {
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISODate());
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
+  const [allocationsTouched, setAllocationsTouched] = useState(false);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  const load = () => api.get('/receipts').then((res) => setReceipts(res.data));
+  const load = () => api.get('/receipts').then((res) => setReceipts(res.data)).catch(() => setLoadError('Could not load receipts.'));
 
   useEffect(() => {
     load();
-    api.get('/customers').then((res) => setCustomers(res.data));
-    api.get('/bank/accounts').then((res) => setBankAccounts(res.data));
+    api.get('/customers').then((res) => setCustomers(res.data)).catch(() => setLoadError('Could not load customers.'));
+    api.get('/bank/accounts').then((res) => setBankAccounts(res.data)).catch(() => setLoadError('Could not load bank accounts.'));
   }, []);
 
   const loadOpenInvoices = async (customerId, currentReceipt = null) => {
@@ -67,10 +71,10 @@ export default function Receipts() {
   }, [customer]);
 
   useEffect(() => {
-    if (!editingReceipt && amount && openInvoices.length > 0) {
+    if (!editingReceipt && !allocationsTouched && amount && openInvoices.length > 0) {
       setAllocations(autoAllocateInvoices(amount, openInvoices));
     }
-  }, [amount, openInvoices, editingReceipt]);
+  }, [amount, openInvoices, editingReceipt, allocationsTouched]);
 
   const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -96,9 +100,10 @@ export default function Receipts() {
     setBankAccount('');
     setAmount('');
     setReference('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayLocalISODate());
     setMethod('BANK_TRANSFER');
     setAllocations({});
+    setAllocationsTouched(false);
     setError('');
   };
 
@@ -114,9 +119,10 @@ export default function Receipts() {
     setBankAccount(typeof receipt.bankAccount === 'string' ? receipt.bankAccount : receipt.bankAccount?._id || '');
     setAmount(receipt.amount || '');
     setReference(receipt.reference || '');
-    setDate(receipt.date ? new Date(receipt.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setDate(receipt.date ? new Date(receipt.date).toISOString().slice(0, 10) : todayLocalISODate());
     setMethod(receipt.method || 'BANK_TRANSFER');
     setAllocations({});
+    setAllocationsTouched(true);
     setError('');
 
     const customerId = typeof receipt.customer === 'string' ? receipt.customer : receipt.customer?._id;
@@ -143,8 +149,10 @@ export default function Receipts() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
     const allocList = Object.entries(allocations).filter(([, v]) => Number(v) > 0).map(([invoice, amt]) => ({ invoice, amount: Number(amt) }));
+    setSubmitting(true);
     try {
       const payload = { customer, bankAccount, amount: Number(amount), reference, date, method, allocations: allocList };
       if (editingReceipt) {
@@ -156,6 +164,8 @@ export default function Receipts() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save receipt.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -174,7 +184,7 @@ export default function Receipts() {
     }
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'receiptNumber', label: 'Receipt #' },
@@ -209,14 +219,15 @@ export default function Receipts() {
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={receipts} />
 
-      <Modal open={modalOpen} onClose={closeModal} title={editingReceipt ? 'Edit Receipt' : 'Record Receipt'}>
+      <Modal open={modalOpen} onClose={() => !submitting && closeModal()} title={editingReceipt ? 'Edit Receipt' : 'Record Receipt'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <label className="block">
             <span className="block text-xs font-medium text-slate-600 mb-1">Customer</span>
-            <select required value={customer} onChange={(e) => { setCustomer(e.target.value); setAllocations({}); if (e.target.value) loadOpenInvoices(e.target.value); else setOpenInvoices([]); }} className="input">
+            <select required value={customer} onChange={(e) => { setCustomer(e.target.value); setAllocations({}); setAllocationsTouched(false); if (e.target.value) loadOpenInvoices(e.target.value); else setOpenInvoices([]); }} className="input">
               <option value="">Select…</option>
               {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
@@ -254,7 +265,7 @@ export default function Receipts() {
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Amount Received</span>
-              <input required type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />
+              <input required type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures" />
             </label>
           </div>
 
@@ -267,9 +278,10 @@ export default function Receipts() {
                     <span>{inv.invoiceNumber} <span className="text-slate-400">({money(inv.grandTotal - inv.amountPaid)} due)</span></span>
                     <input
                       type="number"
+                      min="0"
                       className="input font-figures w-28 py-1"
                       value={allocations[inv._id] || ''}
-                      onChange={(e) => setAllocations({ ...allocations, [inv._id]: e.target.value })}
+                      onChange={(e) => { setAllocationsTouched(true); setAllocations({ ...allocations, [inv._id]: e.target.value }); }}
                     />
                   </div>
                 ))}
@@ -278,7 +290,7 @@ export default function Receipts() {
             </div>
           )}
 
-          <button type="submit" className="mt-2 btn-teal">{editingReceipt ? 'Save changes' : 'Save receipt'}</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : editingReceipt ? 'Save changes' : 'Save receipt'}</button>
         </form>
       </Modal>
 

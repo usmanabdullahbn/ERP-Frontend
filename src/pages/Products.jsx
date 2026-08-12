@@ -5,6 +5,7 @@ import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney } from '../components/ui';
 
 const empty = { name: '', category: '', unit: 'pcs', type: 'STOCK', costPrice: 0, salePrice: 0, taxRate: 0, reorderLevel: 0, openingStock: 0 };
 
@@ -15,15 +16,21 @@ export default function Products() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [detail, setDetail] = useState(null);
   const [movements, setMovements] = useState([]);
 
-  const load = () => api.get('/products').then((res) => setProducts(res.data));
+  const load = () => api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
   useEffect(() => { load(); }, []);
+
+  const openCreate = () => { setForm(empty); setError(''); setModalOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+    setSubmitting(true);
     try {
       await api.post('/products', form);
       setModalOpen(false);
@@ -31,6 +38,8 @@ export default function Products() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save product.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -40,7 +49,7 @@ export default function Products() {
     setMovements(data);
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'sku', label: 'SKU' },
@@ -63,14 +72,15 @@ export default function Products() {
     <PageLayout
       title="Products"
       actions={canManage && (
-        <button onClick={() => setModalOpen(true)} className="flex items-center gap-1.5 btn-primary">
+        <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
           <Plus size={15} /> New Product
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={products} onRowClick={openDetail} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Product">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Product">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <label className="block">
@@ -98,30 +108,30 @@ export default function Products() {
           <div className="grid grid-cols-3 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Cost Price</span>
-              <input type="number" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })} className="input font-figures" />
+              <input type="number" min="0" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })} className="input font-figures" />
             </label>
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Sale Price</span>
-              <input type="number" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: Number(e.target.value) })} className="input font-figures" />
+              <input type="number" min="0" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: Number(e.target.value) })} className="input font-figures" />
             </label>
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Tax %</span>
-              <input type="number" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })} className="input font-figures" />
+              <input type="number" min="0" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })} className="input font-figures" />
             </label>
           </div>
           {form.type === 'STOCK' && (
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="block text-xs font-medium text-slate-600 mb-1">Reorder Level</span>
-                <input type="number" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} className="input font-figures" />
+                <input type="number" min="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} className="input font-figures" />
               </label>
               <label className="block">
                 <span className="block text-xs font-medium text-slate-600 mb-1">Opening Stock</span>
-                <input type="number" value={form.openingStock} onChange={(e) => setForm({ ...form, openingStock: Number(e.target.value) })} className="input font-figures" />
+                <input type="number" min="0" value={form.openingStock} onChange={(e) => setForm({ ...form, openingStock: Number(e.target.value) })} className="input font-figures" />
               </label>
             </div>
           )}
-          <button type="submit" className="mt-2 btn-teal">Create product</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create product'}</button>
         </form>
       </Modal>
 

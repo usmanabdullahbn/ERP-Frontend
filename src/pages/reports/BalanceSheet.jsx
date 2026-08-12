@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
+import { formatMoney } from '../../components/ui';
 
 export default function BalanceSheet() {
   const [data, setData] = useState(null);
   const [asOf, setAsOf] = useState('');
+  const [error, setError] = useState('');
 
   const load = () => {
     const params = {};
     if (asOf) params.asOf = asOf;
-    api.get('/reports/balance-sheet', { params }).then((res) => setData(res.data));
+    api.get('/reports/balance-sheet', { params }).then((res) => setData(res.data)).catch(() => setError('Could not load the balance sheet.'));
   };
   useEffect(() => { load(); }, []);
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   return (
     <PageLayout title="Balance Sheet">
+      {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="flex items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>

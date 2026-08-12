@@ -3,27 +3,28 @@ import api from '../api/client';
 
 const AuthContext = createContext(null);
 
+/*
+  Permissions always come from the server's role.permissions[] — never
+  inferred from the role's display name. A role literally named "Admin"
+  isn't automatically a super-admin; only the '*' wildcard permission is.
+*/
 function normalizeUser(userData) {
   if (!userData) return null;
 
   if (typeof userData.role === 'string') {
-    const name = userData.role;
-    const perms = name === 'Admin' ? ['*'] : [];
     return {
       ...userData,
-      role: { id: null, name, permissions: perms }
+      role: { id: null, name: userData.role, permissions: [] }
     };
   }
 
   if (userData.role && typeof userData.role === 'object') {
-    const name = userData.role.name || '';
-    const perms = userData.role.permissions && userData.role.permissions.length ? userData.role.permissions : (name === 'Admin' ? ['*'] : []);
     return {
       ...userData,
       role: {
         id: userData.role.id || null,
-        name,
-        permissions: perms
+        name: userData.role.name || '',
+        permissions: userData.role.permissions || []
       }
     };
   }
@@ -37,7 +38,14 @@ function normalizeUser(userData) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('erp_user');
-    return raw ? normalizeUser(JSON.parse(raw)) : null;
+    if (!raw) return null;
+    try {
+      return normalizeUser(JSON.parse(raw));
+    } catch {
+      localStorage.removeItem('erp_user');
+      localStorage.removeItem('erp_token');
+      return null;
+    }
   });
   const [loading, setLoading] = useState(false);
 

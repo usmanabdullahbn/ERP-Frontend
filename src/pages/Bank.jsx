@@ -5,6 +5,10 @@ import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney, todayLocalISODate } from '../components/ui';
+
+const emptyAcctForm = { name: '', accountNumber: '', bankName: '', type: 'BANK', openingBalance: 0 };
+const emptyTxnForm = () => ({ bankAccount: '', date: todayLocalISODate(), type: 'DEPOSIT', amount: '', contraAccount: '', toBankAccount: '', reference: '', notes: '' });
 
 export default function Bank() {
   const { hasPermission } = useAuth();
@@ -14,50 +18,65 @@ export default function Bank() {
   const [transactions, setTransactions] = useState([]);
   const [glAccounts, setGlAccounts] = useState([]);
   const [tab, setTab] = useState('accounts');
+  const [loadError, setLoadError] = useState('');
 
   const [acctModal, setAcctModal] = useState(false);
-  const [acctForm, setAcctForm] = useState({ name: '', accountNumber: '', bankName: '', type: 'BANK', openingBalance: 0 });
+  const [acctForm, setAcctForm] = useState(emptyAcctForm);
+  const [acctError, setAcctError] = useState('');
+  const [acctSubmitting, setAcctSubmitting] = useState(false);
 
   const [txnModal, setTxnModal] = useState(false);
-  const [txnForm, setTxnForm] = useState({ bankAccount: '', date: new Date().toISOString().slice(0, 10), type: 'DEPOSIT', amount: '', contraAccount: '', toBankAccount: '', reference: '', notes: '' });
-
-  const [error, setError] = useState('');
+  const [txnForm, setTxnForm] = useState(emptyTxnForm());
+  const [txnError, setTxnError] = useState('');
+  const [txnSubmitting, setTxnSubmitting] = useState(false);
 
   const load = () => {
-    api.get('/bank/accounts').then((res) => setAccounts(res.data));
-    api.get('/bank/transactions').then((res) => setTransactions(res.data));
+    api.get('/bank/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load bank accounts.'));
+    api.get('/bank/transactions').then((res) => setTransactions(res.data)).catch(() => setLoadError('Could not load transactions.'));
   };
   useEffect(() => {
     load();
-    api.get('/accounts').then((res) => setGlAccounts(res.data.filter((a) => a.subType !== 'Bank' && a.subType !== 'Cash')));
+    api.get('/accounts').then((res) => setGlAccounts(res.data.filter((a) => a.subType !== 'Bank' && a.subType !== 'Cash'))).catch(() => setLoadError('Could not load chart of accounts.'));
   }, []);
+
+  const openAcctModal = () => { setAcctForm(emptyAcctForm); setAcctError(''); setAcctModal(true); };
+  const openTxnModal = () => { setTxnForm(emptyTxnForm()); setTxnError(''); setTxnModal(true); };
 
   const saveAccount = async (e) => {
     e.preventDefault();
-    setError('');
+    if (acctSubmitting) return;
+    setAcctError('');
+    setAcctSubmitting(true);
     try {
       await api.post('/bank/accounts', acctForm);
       setAcctModal(false);
-      setAcctForm({ name: '', accountNumber: '', bankName: '', type: 'BANK', openingBalance: 0 });
+      setAcctForm(emptyAcctForm);
       load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not save bank account.');
+      setAcctError(err.response?.data?.message || 'Could not save bank account.');
+    } finally {
+      setAcctSubmitting(false);
     }
   };
 
   const saveTxn = async (e) => {
     e.preventDefault();
-    setError('');
+    if (txnSubmitting) return;
+    setTxnError('');
+    setTxnSubmitting(true);
     try {
       await api.post('/bank/transactions', { ...txnForm, amount: Number(txnForm.amount) });
       setTxnModal(false);
+      setTxnForm(emptyTxnForm());
       load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not save transaction.');
+      setTxnError(err.response?.data?.message || 'Could not save transaction.');
+    } finally {
+      setTxnSubmitting(false);
     }
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const acctColumns = [
     { key: 'name', label: 'Name' },
@@ -81,10 +100,11 @@ export default function Bank() {
       title="Banking"
       actions={canManage && (
         tab === 'accounts'
-          ? <button onClick={() => setAcctModal(true)} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Bank Account</button>
-          : <button onClick={() => setTxnModal(true)} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Transaction</button>
+          ? <button onClick={openAcctModal} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Bank Account</button>
+          : <button onClick={openTxnModal} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Transaction</button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('accounts')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'accounts' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Accounts</button>
         <button onClick={() => setTab('transactions')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'transactions' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Transactions</button>
@@ -92,9 +112,9 @@ export default function Bank() {
 
       {tab === 'accounts' ? <DataTable columns={acctColumns} data={accounts} /> : <DataTable columns={txnColumns} data={transactions} />}
 
-      <Modal open={acctModal} onClose={() => setAcctModal(false)} title="New Bank Account">
+      <Modal open={acctModal} onClose={() => !acctSubmitting && setAcctModal(false)} title="New Bank Account">
         <form onSubmit={saveAccount} className="flex flex-col gap-3">
-          {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+          {acctError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{acctError}</div>}
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
             <input required value={acctForm.name} onChange={(e) => setAcctForm({ ...acctForm, name: e.target.value })} className="input" /></label>
           <div className="grid grid-cols-2 gap-3">
@@ -112,13 +132,13 @@ export default function Bank() {
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Opening Balance</span>
               <input type="number" value={acctForm.openingBalance} onChange={(e) => setAcctForm({ ...acctForm, openingBalance: Number(e.target.value) })} className="input font-figures" /></label>
           </div>
-          <button type="submit" className="mt-2 btn-teal">Create bank account</button>
+          <button type="submit" disabled={acctSubmitting} className="mt-2 btn-teal disabled:opacity-60">{acctSubmitting ? 'Saving…' : 'Create bank account'}</button>
         </form>
       </Modal>
 
-      <Modal open={txnModal} onClose={() => setTxnModal(false)} title="New Bank Transaction">
+      <Modal open={txnModal} onClose={() => !txnSubmitting && setTxnModal(false)} title="New Bank Transaction">
         <form onSubmit={saveTxn} className="flex flex-col gap-3">
-          {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+          {txnError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{txnError}</div>}
           <div className="grid grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From Account</span>
               <select required value={txnForm.bankAccount} onChange={(e) => setTxnForm({ ...txnForm, bankAccount: e.target.value })} className="input">
@@ -149,11 +169,11 @@ export default function Bank() {
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Date</span>
               <input type="date" value={txnForm.date} onChange={(e) => setTxnForm({ ...txnForm, date: e.target.value })} className="input" /></label>
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Amount</span>
-              <input required type="number" value={txnForm.amount} onChange={(e) => setTxnForm({ ...txnForm, amount: e.target.value })} className="input font-figures" /></label>
+              <input required type="number" min="0" value={txnForm.amount} onChange={(e) => setTxnForm({ ...txnForm, amount: e.target.value })} className="input font-figures" /></label>
           </div>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Reference / Notes</span>
             <input value={txnForm.reference} onChange={(e) => setTxnForm({ ...txnForm, reference: e.target.value, notes: e.target.value })} className="input" /></label>
-          <button type="submit" className="mt-2 btn-teal">Save transaction</button>
+          <button type="submit" disabled={txnSubmitting} className="mt-2 btn-teal disabled:opacity-60">{txnSubmitting ? 'Saving…' : 'Save transaction'}</button>
         </form>
       </Modal>
     </PageLayout>

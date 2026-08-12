@@ -1,9 +1,23 @@
+import { useEffect, useRef } from 'react';
+
 export default function ConfirmModal({ open, onConfirm, onCancel, message, title = 'Confirm', confirmLabel = 'Yes', cancelLabel = 'Cancel', danger = false }) {
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-6">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+      <div ref={panelRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-label={title} className="bg-white rounded-xl shadow-xl w-full max-w-sm outline-none">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="font-display text-lg text-ink-800">{title}</h2>
           <button onClick={onCancel} className="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>

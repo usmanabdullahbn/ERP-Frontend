@@ -6,53 +6,90 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
+import { useAuth } from '../context/AuthContext';
+
+const emptyUserForm = { name: '', email: '', password: '', role: '' };
+const emptyRoleForm = { name: '', description: '', permissions: [] };
 
 export default function Users() {
+  const { user: currentUser } = useAuth();
   const [tab, setTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: '' });
+  const [userForm, setUserForm] = useState(emptyUserForm);
+  const [userError, setUserError] = useState('');
+  const [userSubmitting, setUserSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [roleModal, setRoleModal] = useState(false);
-  const [roleForm, setRoleForm] = useState({ name: '', description: '', permissions: [] });
+  const [roleForm, setRoleForm] = useState(emptyRoleForm);
+  const [roleError, setRoleError] = useState('');
+  const [roleSubmitting, setRoleSubmitting] = useState(false);
 
-  const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
+  const [listError, setListError] = useState('');
 
   const load = () => {
-    api.get('/users').then((res) => setUsers(res.data));
-    api.get('/roles').then((res) => setRoles(res.data));
+    api.get('/users').then((res) => setUsers(res.data)).catch(() => setLoadError('Could not load users.'));
+    api.get('/roles').then((res) => setRoles(res.data)).catch(() => setLoadError('Could not load roles.'));
   };
   useEffect(() => {
     load();
-    api.get('/roles/catalog').then((res) => setCatalog(res.data));
+    api.get('/roles/catalog').then((res) => setCatalog(res.data)).catch(() => setLoadError('Could not load the permission catalog.'));
   }, []);
+
+  const openUserModal = () => { setUserForm(emptyUserForm); setUserError(''); setShowPassword(false); setUserModal(true); };
+  const openRoleModal = () => { setRoleForm(emptyRoleForm); setRoleError(''); setRoleModal(true); };
 
   const saveUser = async (e) => {
     e.preventDefault();
-    setError('');
+    if (userSubmitting) return;
+    setUserError('');
+    setUserSubmitting(true);
     try {
       await api.post('/users', userForm);
       setUserModal(false);
-      setUserForm({ name: '', email: '', password: '', role: '' });
+      setUserForm(emptyUserForm);
       load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not create user.');
+      setUserError(err.response?.data?.message || 'Could not create user.');
+    } finally {
+      setUserSubmitting(false);
     }
   };
 
-  const toggleActive = async (u) => {
-    await api.put(`/users/${u._id}`, { isActive: !u.isActive });
-    load();
+  const toggleActive = (u) => {
+    if (u._id === currentUser?.id) {
+      setListError("You can't deactivate your own account.");
+      return;
+    }
+    setConfirmMessage(`${u.isActive ? 'Deactivate' : 'Activate'} ${u.name}?`);
+    setConfirmAction(() => () => performToggleActive(u));
+    setConfirmOpen(true);
+  };
+
+  const performToggleActive = async (u) => {
+    try {
+      await api.put(`/users/${u._id}`, { isActive: !u.isActive });
+      load();
+      setConfirmOpen(false);
+    } catch (err) {
+      setListError(err.response?.data?.message || 'Could not update user.');
+      setConfirmOpen(false);
+    }
   };
 
   const removeUser = async (u) => {
+    if (u._id === currentUser?.id) {
+      setListError("You can't delete your own account.");
+      return;
+    }
     setConfirmMessage(`Delete user ${u.name}?`);
     setConfirmAction(() => () => performRemoveUser(u._id));
     setConfirmOpen(true);
@@ -64,20 +101,25 @@ export default function Users() {
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not delete user.');
+      setListError(err.response?.data?.message || 'Could not delete user.');
+      setConfirmOpen(false);
     }
   };
 
   const saveRole = async (e) => {
     e.preventDefault();
-    setError('');
+    if (roleSubmitting) return;
+    setRoleError('');
+    setRoleSubmitting(true);
     try {
       await api.post('/roles', roleForm);
       setRoleModal(false);
-      setRoleForm({ name: '', description: '', permissions: [] });
+      setRoleForm(emptyRoleForm);
       load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not create role.');
+      setRoleError(err.response?.data?.message || 'Could not create role.');
+    } finally {
+      setRoleSubmitting(false);
     }
   };
 
@@ -100,7 +142,8 @@ export default function Users() {
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not delete role.');
+      setListError(err.response?.data?.message || 'Could not delete role.');
+      setConfirmOpen(false);
     }
   };
 
@@ -114,7 +157,9 @@ export default function Users() {
       render: (r) => (
         <div className="flex gap-2 justify-end">
           <button onClick={() => toggleActive(r)} className="text-xs text-slate-500 hover:underline">{r.isActive ? 'Deactivate' : 'Activate'}</button>
-          <button onClick={() => removeUser(r)} className="text-slate-400 hover:text-ledger-rose"><Trash2 size={14} /></button>
+          {r._id !== currentUser?.id && (
+            <button onClick={() => removeUser(r)} className="text-slate-400 hover:text-ledger-rose"><Trash2 size={14} /></button>
+          )}
         </div>
       )
     }
@@ -137,10 +182,11 @@ export default function Users() {
       title="Users & Roles"
       actions={
         tab === 'users'
-          ? <button onClick={() => setUserModal(true)} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New User</button>
-          : <button onClick={() => setRoleModal(true)} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Role</button>
+          ? <button onClick={openUserModal} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New User</button>
+          : <button onClick={openRoleModal} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Role</button>
       }
     >
+      {(loadError || listError) && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{listError || loadError}</div>}
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('users')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'users' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Users</button>
         <button onClick={() => setTab('roles')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'roles' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Roles</button>
@@ -148,9 +194,9 @@ export default function Users() {
 
       {tab === 'users' ? <DataTable columns={userColumns} data={users} /> : <DataTable columns={roleColumns} data={roles} />}
 
-      <Modal open={userModal} onClose={() => setUserModal(false)} title="New User">
+      <Modal open={userModal} onClose={() => !userSubmitting && setUserModal(false)} title="New User">
         <form onSubmit={saveUser} className="flex flex-col gap-3">
-          {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+          {userError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{userError}</div>}
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
             <input required value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} className="input" /></label>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Email</span>
@@ -180,13 +226,13 @@ export default function Users() {
               <option value="">Select…</option>
               {roles.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
             </select></label>
-          <button type="submit" className="mt-2 btn-teal">Create user</button>
+          <button type="submit" disabled={userSubmitting} className="mt-2 btn-teal disabled:opacity-60">{userSubmitting ? 'Creating…' : 'Create user'}</button>
         </form>
       </Modal>
 
-      <Modal open={roleModal} onClose={() => setRoleModal(false)} title="New Role">
+      <Modal open={roleModal} onClose={() => !roleSubmitting && setRoleModal(false)} title="New Role">
         <form onSubmit={saveRole} className="flex flex-col gap-3">
-          {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+          {roleError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{roleError}</div>}
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
             <input required value={roleForm.name} onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })} className="input" /></label>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Description</span>
@@ -202,9 +248,19 @@ export default function Users() {
               ))}
             </div>
           </div>
-          <button type="submit" className="mt-2 btn-teal">Create role</button>
+          <button type="submit" disabled={roleSubmitting} className="mt-2 btn-teal disabled:opacity-60">{roleSubmitting ? 'Creating…' : 'Create role'}</button>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Confirm"
+        message={confirmMessage}
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        onConfirm={confirmAction}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </PageLayout>
   );
 }

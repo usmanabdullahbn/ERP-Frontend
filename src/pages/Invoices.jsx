@@ -7,40 +7,44 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney, todayLocalISODate } from '../components/ui';
 
-const emptyLine = { product: '', warehouse: '', quantity: 1, unitPrice: 0, taxRate: 0 };
+let lineKeySeq = 0;
+const newLine = () => ({ _key: ++lineKeySeq, product: '', warehouse: '', quantity: 1, unitPrice: 0, taxRate: 0 });
 
 export default function Invoices() {
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const canManage = hasPermission('sales.manage');
-  const isAdmin = user?.role?.permissions?.includes('*') || user?.role?.name === 'Admin' || user?.role === 'Admin';
-  const canDeleteInvoice = (invoice) => canManage && (invoice?.status === 'DRAFT' || isAdmin);
 
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [customer, setCustomer] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISODate());
   const [dueDate, setDueDate] = useState('');
-  const [lines, setLines] = useState([{ ...emptyLine }]);
+  const [lines, setLines] = useState([newLine()]);
   const [error, setError] = useState('');
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [detail, setDetail] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const [detailBusy, setDetailBusy] = useState(false);
 
-  const load = () => api.get('/invoices').then((res) => setInvoices(res.data));
+  const load = () => api.get('/invoices').then((res) => setInvoices(res.data)).catch(() => setLoadError('Could not load invoices.'));
 
   useEffect(() => {
     load();
-    api.get('/customers').then((res) => setCustomers(res.data));
-    api.get('/products').then((res) => setProducts(res.data));
-    api.get('/warehouses').then((res) => setWarehouses(res.data));
+    api.get('/customers').then((res) => setCustomers(res.data)).catch(() => setLoadError('Could not load customers.'));
+    api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
+    api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setLoadError('Could not load warehouses.'));
   }, []);
 
   const updateLine = (i, patch) => {
@@ -53,10 +57,15 @@ export default function Invoices() {
     setLines(next);
   };
 
-  const addLine = () => setLines([...lines, { ...emptyLine }]);
+  const addLine = () => setLines([...lines, newLine()]);
   const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
 
-  const totals = lines.reduce(
+  const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0 && l.unitPrice >= 0);
+  const hasIncompleteLines = validLines.length !== lines.length;
+
+  // Totals mirror validLines exactly — every line included here is a line
+  // that will actually be submitted, so what's previewed is what gets saved.
+  const totals = validLines.reduce(
     (acc, l) => {
       const base = (l.quantity || 0) * (l.unitPrice || 0);
       const tax = (base * (l.taxRate || 0)) / 100;
@@ -69,17 +78,25 @@ export default function Invoices() {
 
   const openCreate = () => {
     setEditingInvoice(null);
-    setCustomer(''); setDate(new Date().toISOString().slice(0, 10)); setDueDate('');
-    setLines([{ ...emptyLine }]); setError(''); setModalOpen(true);
+    setCustomer(''); setDate(todayLocalISODate()); setDueDate('');
+    setLines([newLine()]); setError(''); setModalOpen(true);
   };
 
   const save = async (postNow) => {
+    if (submitting) return;
     setError('');
     if (!customer) return setError('Select a customer.');
-    const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0);
     if (!validLines.length) return setError('Add at least one valid line item.');
+    setSubmitting(true);
     try {
-      const payload = { customer, date, dueDate: dueDate || undefined, items: validLines, notes: editingInvoice?.notes || '', postNow };
+      const payload = {
+        customer,
+        date,
+        dueDate: dueDate || undefined,
+        items: validLines.map(({ _key, ...rest }) => rest),
+        notes: editingInvoice?.notes || '',
+        postNow
+      };
       if (editingInvoice) {
         await api.put(`/invoices/${editingInvoice._id}`, payload);
       } else {
@@ -91,10 +108,13 @@ export default function Invoices() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save invoice.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const openDetail = async (inv) => {
+    setDetailError('');
     const { data } = await api.get(`/invoices/${inv._id}`);
     setDetail(data);
   };
@@ -103,9 +123,10 @@ export default function Invoices() {
     const { data } = await api.get(`/invoices/${inv._id}`);
     setEditingInvoice(data);
     setCustomer(data.customer?._id || '');
-    setDate(data.date ? new Date(data.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setDate(data.date ? new Date(data.date).toISOString().slice(0, 10) : todayLocalISODate());
     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 10) : '');
     setLines(data.items.map((item) => ({
+      _key: ++lineKeySeq,
       product: item.product?._id || item.product,
       warehouse: item.warehouse?._id || item.warehouse,
       quantity: item.quantity,
@@ -116,11 +137,8 @@ export default function Invoices() {
     setModalOpen(true);
   };
 
-  const handleDeleteClick = (id, status) => {
-    const message = status !== 'DRAFT' && isAdmin
-      ? 'Delete this invoice? Admins can remove non-draft invoices.'
-      : 'Delete this invoice? Only draft invoices can be deleted.';
-    setConfirmMessage(message);
+  const handleDeleteClick = (id) => {
+    setConfirmMessage('Delete this draft invoice? This cannot be undone.');
     setConfirmAction(() => () => performDelete(id));
     setConfirmOpen(true);
   };
@@ -132,12 +150,13 @@ export default function Invoices() {
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not delete invoice.');
+      setDetailError(err.response?.data?.message || 'Could not delete invoice.');
+      setConfirmOpen(false);
     }
   };
 
   const handleVoidClick = (id) => {
-    setConfirmMessage('Void this invoice? This creates a reversing entry.');
+    setConfirmMessage('Void this invoice? This creates a reversing entry and returns the stock it sold.');
     setConfirmAction(() => () => performVoid(id));
     setConfirmOpen(true);
   };
@@ -150,11 +169,29 @@ export default function Invoices() {
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not void invoice.');
+      setDetailError(err.response?.data?.message || 'Could not void invoice.');
+      setConfirmOpen(false);
     }
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const handlePost = async (id) => {
+    setDetailBusy(true);
+    setDetailError('');
+    try {
+      await api.post(`/invoices/${id}/post`);
+      const { data } = await api.get(`/invoices/${id}`);
+      setDetail(data);
+      load();
+    } catch (err) {
+      setDetailError(err.response?.data?.message || 'Could not post invoice.');
+    } finally {
+      setDetailBusy(false);
+    }
+  };
+
+  const handlePrint = () => window.print();
+
+  const money = formatMoney;
 
   const columns = [
     { key: 'invoiceNumber', label: 'Invoice #' },
@@ -165,18 +202,20 @@ export default function Invoices() {
     { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
     { key: 'actions', label: '', align: 'right', render: (r) => (
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); openEdit(r); }}
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
-            title="Edit invoice"
-          >
-            <Pencil size={16} />
-          </button>
-          {canDeleteInvoice(r) && (
+          {r.status === 'DRAFT' && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id, r.status); }}
+              onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+              title="Edit invoice"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
+          {canManage && r.status === 'DRAFT' && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
               className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
               title="Delete invoice"
             >
@@ -197,9 +236,10 @@ export default function Invoices() {
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={invoices} onRowClick={openDetail} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingInvoice ? 'Edit Invoice' : 'New Invoice'} width="max-w-3xl">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingInvoice ? 'Edit Invoice' : 'New Invoice'} width="max-w-3xl">
         <div className="flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-3 gap-3">
@@ -226,24 +266,37 @@ export default function Invoices() {
               <button onClick={addLine} type="button" className="text-xs text-ledger-teal hover:underline">+ Add line</button>
             </div>
             <div className="flex flex-col gap-2">
-              {lines.map((line, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                  <select value={line.product} onChange={(e) => updateLine(i, { product: e.target.value })} className="input col-span-4">
-                    <option value="">Product…</option>
-                    {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
-                  </select>
-                  <select value={line.warehouse} onChange={(e) => updateLine(i, { warehouse: e.target.value })} className="input col-span-3">
-                    <option value="">Warehouse…</option>
-                    {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
-                  </select>
-                  <input type="number" placeholder="Qty" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} className="input font-figures col-span-2" />
-                  <input type="number" placeholder="Price" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })} className="input font-figures col-span-2" />
-                  <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose col-span-1 flex justify-center">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+              {lines.map((line, i) => {
+                const incomplete = !(line.product && line.warehouse && line.quantity > 0 && line.unitPrice >= 0);
+                return (
+                  <div key={line._key} className="grid grid-cols-12 gap-2 items-end">
+                    <select value={line.product} onChange={(e) => updateLine(i, { product: e.target.value })} className="input col-span-4">
+                      <option value="">Product…</option>
+                      {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+                    </select>
+                    <select value={line.warehouse} onChange={(e) => updateLine(i, { warehouse: e.target.value })} className={`input col-span-3 ${!line.warehouse && line.product ? 'border-ledger-rose' : ''}`}>
+                      <option value="">Warehouse…</option>
+                      {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+                    </select>
+                    <input type="number" min="0" placeholder="Qty" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} className="input font-figures col-span-2" />
+                    <input type="number" min="0" placeholder="Price" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })} className="input font-figures col-span-2" />
+                    <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose col-span-1 flex justify-center">
+                      <Trash2 size={16} />
+                    </button>
+                    {incomplete && (
+                      <p className="col-span-12 -mt-1 text-xs text-ledger-rose">
+                        This line needs a product, warehouse, quantity above zero, and a non-negative price — it won't be saved until then.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+            {hasIncompleteLines && (
+              <p className="text-xs text-ledger-rose mt-2">
+                {lines.length - validLines.length} line(s) above are incomplete and are excluded from the totals below and from what gets saved.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end text-sm gap-6 pt-2 border-t border-slate-200">
@@ -253,8 +306,8 @@ export default function Invoices() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <button onClick={() => save(false)} className="btn-ghost">Save as draft</button>
-            <button onClick={() => save(true)} className="btn-teal">Save &amp; post</button>
+            <button disabled={submitting} onClick={() => save(false)} className="btn-ghost disabled:opacity-60">Save as draft</button>
+            <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>
           </div>
         </div>
       </Modal>
@@ -262,6 +315,7 @@ export default function Invoices() {
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Invoice ${detail?.invoiceNumber || ''}`} width="max-w-2xl">
         {detail && (
           <div className="invoice-document flex flex-col gap-4">
+            {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
               <div>
                 <p className="text-slate-500">Customer</p>
@@ -270,22 +324,24 @@ export default function Invoices() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={printInvoice}
+                  onClick={handlePrint}
                   className="btn-ghost inline-flex items-center gap-2"
                 >
                   <Printer size={16} /> Print
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openEdit(detail)}
-                  className="btn-ghost inline-flex items-center gap-2"
-                >
-                  <Pencil size={16} /> Edit
-                </button>
-                {canDeleteInvoice(detail) && (
+                {detail.status === 'DRAFT' && (
                   <button
                     type="button"
-                    onClick={() => handleDeleteClick(detail._id, detail.status)}
+                    onClick={() => openEdit(detail)}
+                    className="btn-ghost inline-flex items-center gap-2"
+                  >
+                    <Pencil size={16} /> Edit
+                  </button>
+                )}
+                {canManage && detail.status === 'DRAFT' && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteClick(detail._id)}
                     className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
                   >
                     <Trash2 size={16} /> Delete
@@ -293,7 +349,7 @@ export default function Invoices() {
                 )}
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <h1 className="text-xl font-semibold">Sales Invoice</h1>
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -306,7 +362,7 @@ export default function Invoices() {
                   <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
                 </div>
               </div>
-              
+
               <div className="border-t border-slate-200 pt-3">
                 <p className="text-slate-500 text-xs">Customer</p>
                 <p className="font-medium">{detail.customer?.name}</p>
@@ -325,7 +381,7 @@ export default function Invoices() {
               </thead>
               <tbody>
                 {detail.items.map((it, i) => (
-                  <tr key={i} className="border-b border-slate-100">
+                  <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
                     <td className="py-2">{it.product?.name}</td>
                     <td>{it.warehouse?.name}</td>
                     <td className="text-right font-figures">{it.quantity}</td>
@@ -354,8 +410,8 @@ export default function Invoices() {
             <div className="print:hidden">
               {canManage && (
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  {detail.status === 'DRAFT' && <button onClick={() => postInvoice(detail._id)} className="btn-teal">Post to ledger</button>}
-                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && <button onClick={() => voidInvoice(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
+                  {detail.status === 'DRAFT' && <button disabled={detailBusy} onClick={() => handlePost(detail._id)} className="btn-teal disabled:opacity-60">{detailBusy ? 'Posting…' : 'Post to ledger'}</button>}
+                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && detail.status !== 'POSTING' && <button onClick={() => handleVoidClick(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
                 </div>
               )}
             </div>
@@ -371,8 +427,8 @@ export default function Invoices() {
           setConfirmAction(null);
         }}
         message={confirmMessage}
-        title="Delete invoice"
-        confirmLabel="Delete"
+        title="Confirm"
+        confirmLabel="Confirm"
         danger
       />
     </PageLayout>

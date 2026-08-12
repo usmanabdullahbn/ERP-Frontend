@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
+import { formatMoney } from '../../components/ui';
 
 export default function StockSummary() {
   const [data, setData] = useState(null);
-  useEffect(() => { api.get('/reports/stock-summary').then((res) => setData(res.data)); }, []);
+  const [error, setError] = useState('');
+  useEffect(() => { api.get('/reports/stock-summary').then((res) => setData(res.data)).catch(() => setError('Could not load the stock summary.')); }, []);
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   const columns = [
     { key: 'sku', label: 'SKU' },
@@ -20,6 +22,7 @@ export default function StockSummary() {
 
   return (
     <PageLayout title="Stock Summary">
+      {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       {data && (
         <>
           <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-card p-5 flex justify-between items-center">

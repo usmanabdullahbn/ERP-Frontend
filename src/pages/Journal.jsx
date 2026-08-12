@@ -4,8 +4,10 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney, todayLocalISODate } from '../components/ui';
 
-const emptyLine = { account: '', debit: 0, credit: 0, memo: '' };
+let lineKeySeq = 0;
+const newLine = () => ({ _key: ++lineKeySeq, account: '', debit: 0, credit: 0, memo: '' });
 
 export default function Journal() {
   const { hasPermission } = useAuth();
@@ -14,16 +16,18 @@ export default function Journal() {
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detail, setDetail] = useState(null);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISODate());
   const [reference, setReference] = useState('');
   const [narration, setNarration] = useState('');
-  const [lines, setLines] = useState([{ ...emptyLine }, { ...emptyLine }]);
+  const [lines, setLines] = useState([newLine(), newLine()]);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  const load = () => api.get('/journal').then((res) => setEntries(res.data));
+  const load = () => api.get('/journal').then((res) => setEntries(res.data)).catch(() => setLoadError('Could not load journal entries.'));
   useEffect(() => {
     load();
-    api.get('/accounts').then((res) => setAccounts(res.data));
+    api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
   }, []);
 
   const updateLine = (i, patch) => {
@@ -31,7 +35,7 @@ export default function Journal() {
     next[i] = { ...next[i], ...patch };
     setLines(next);
   };
-  const addLine = () => setLines([...lines, { ...emptyLine }]);
+  const addLine = () => setLines([...lines, newLine()]);
   const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
 
   const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
@@ -39,27 +43,33 @@ export default function Journal() {
   const balanced = Math.abs(totalDebit - totalCredit) < 0.005 && totalDebit > 0;
 
   const openCreate = () => {
-    setDate(new Date().toISOString().slice(0, 10)); setReference(''); setNarration('');
-    setLines([{ ...emptyLine }, { ...emptyLine }]); setError(''); setModalOpen(true);
+    setDate(todayLocalISODate()); setReference(''); setNarration('');
+    setLines([newLine(), newLine()]); setError(''); setModalOpen(true);
   };
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
     if (!balanced) return setError('Debits must equal credits before saving.');
+    setSubmitting(true);
     try {
       await api.post('/journal/manual', {
         date, reference, narration,
-        lines: lines.filter((l) => l.account && (l.debit > 0 || l.credit > 0)).map((l) => ({ ...l, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 }))
+        lines: lines
+          .filter((l) => l.account && (l.debit > 0 || l.credit > 0))
+          .map(({ _key, ...l }) => ({ ...l, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 }))
       });
       setModalOpen(false);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save journal entry.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   return (
     <PageLayout
@@ -70,6 +80,7 @@ export default function Journal() {
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -94,7 +105,7 @@ export default function Journal() {
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Manual Journal Entry" width="max-w-2xl">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="Manual Journal Entry" width="max-w-2xl">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-2 gap-3">
@@ -108,13 +119,13 @@ export default function Journal() {
 
           <div className="flex flex-col gap-2">
             {lines.map((line, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-end">
+              <div key={line._key} className="grid grid-cols-12 gap-2 items-end">
                 <select value={line.account} onChange={(e) => updateLine(i, { account: e.target.value })} className="input col-span-5">
                   <option value="">Account…</option>
                   {accounts.map((a) => <option key={a._id} value={a._id}>{a.code} — {a.name}</option>)}
                 </select>
-                <input type="number" placeholder="Debit" value={line.debit} onChange={(e) => updateLine(i, { debit: e.target.value, credit: 0 })} className="input font-figures col-span-3" />
-                <input type="number" placeholder="Credit" value={line.credit} onChange={(e) => updateLine(i, { credit: e.target.value, debit: 0 })} className="input font-figures col-span-3" />
+                <input type="number" min="0" placeholder="Debit" value={line.debit} onChange={(e) => updateLine(i, { debit: e.target.value, credit: 0 })} className="input font-figures col-span-3" />
+                <input type="number" min="0" placeholder="Credit" value={line.credit} onChange={(e) => updateLine(i, { credit: e.target.value, debit: 0 })} className="input font-figures col-span-3" />
                 <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose col-span-1 flex justify-center"><Trash2 size={16} /></button>
               </div>
             ))}
@@ -126,7 +137,7 @@ export default function Journal() {
             <span>Total Credit <span className="font-figures ml-2">{money(totalCredit)}</span></span>
           </div>
 
-          <button type="submit" className="mt-2 btn-teal disabled:opacity-50" disabled={!balanced}>Post entry</button>
+          <button type="submit" className="mt-2 btn-teal disabled:opacity-50" disabled={!balanced || submitting}>{submitting ? 'Saving…' : 'Post entry'}</button>
         </form>
       </Modal>
 

@@ -12,25 +12,34 @@ const NORMAL = { ASSET: 'debit', EXPENSE: 'debit', LIABILITY: 'credit', EQUITY: 
 export default function ChartOfAccounts() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('accounting.manage');
+  const emptyForm = { code: '', name: '', type: 'ASSET', subType: '', description: '' };
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ code: '', name: '', type: 'ASSET', subType: '', description: '' });
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [filterType, setFilterType] = useState('');
 
-  const load = () => api.get('/accounts').then((res) => setAccounts(res.data));
+  const load = () => api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
   useEffect(() => { load(); }, []);
+
+  const openCreate = () => { setForm(emptyForm); setError(''); setModalOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+    setSubmitting(true);
     try {
       await api.post('/accounts', { ...form, normalBalance: NORMAL[form.type] });
       setModalOpen(false);
-      setForm({ code: '', name: '', type: 'ASSET', subType: '', description: '' });
+      setForm(emptyForm);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not create account.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -49,11 +58,12 @@ export default function ChartOfAccounts() {
     <PageLayout
       title="Chart of Accounts"
       actions={canManage && (
-        <button onClick={() => setModalOpen(true)} className="flex items-center gap-1.5 btn-primary">
+        <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
           <Plus size={15} /> New Account
         </button>
       )}
     >
+      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <div className="flex gap-2 mb-4">
         <button onClick={() => setFilterType('')} className={`px-3 py-1.5 rounded-lg text-xs ${!filterType ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>All</button>
         {TYPES.map((t) => (
@@ -63,7 +73,7 @@ export default function ChartOfAccounts() {
 
       <DataTable columns={columns} data={filtered} />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Account">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Account">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-2 gap-3">
@@ -80,7 +90,7 @@ export default function ChartOfAccounts() {
             <input value={form.subType} onChange={(e) => setForm({ ...form, subType: e.target.value })} className="input" /></label>
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Description</span>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" rows={2} /></label>
-          <button type="submit" className="mt-2 btn-teal">Create account</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create account'}</button>
         </form>
       </Modal>
     </PageLayout>

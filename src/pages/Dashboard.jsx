@@ -4,6 +4,7 @@ import { Wallet, Landmark, Receipt, Package, AlertTriangle, TrendingUp } from 'l
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import StatCard from '../components/StatCard';
+import { formatMoney } from '../components/ui';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -15,7 +16,8 @@ export default function Dashboard() {
       .catch((err) => setError(err.response?.data?.message || 'Could not load dashboard.'));
   }, []);
 
-  const money = (n) => `Rs ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // No currency symbol, matching every other page in the app — see formatMoney.
+  const money = formatMoney;
 
   return (
     <PageLayout title="Dashboard">

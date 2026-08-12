@@ -45,6 +45,18 @@ body {
 }
 
 @media print {
+  /*
+    Printable content (an invoice, a bill, a customer statement) always
+    lives inside an open Modal, which the app renders inline as a
+    .fixed.inset-0 overlay somewhere under <main>#root — not in a portal.
+    Because a display:none ancestor hides its descendants no matter what
+    display value they carry themselves, we can't hide #root wholesale and
+    then try to re-show a class nested inside it (that was the previous,
+    broken approach). Instead: hide the page chrome directly, hide every
+    *other* direct child of <main> (the list/table behind the modal), and
+    let the modal's own overlay flow as a normal page instead of a fixed,
+    backdropped popup.
+  */
   @page {
     size: A5;
     margin: 8mm;
@@ -56,66 +68,38 @@ body {
     color-adjust: exact !important;
   }
 
-  body {
-    background: white !important;
-  }
-
   html, body, #root {
     height: auto !important;
   }
 
-  /* Hide all UI elements except the modal content */
-  body > * {
+  body {
+    background: white !important;
+  }
+
+  aside, nav, header {
     display: none !important;
   }
 
-  /* Show only the print container */
-  .print-container {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-    height: auto !important;
-    background: white !important;
-  }
-
-  /* Hide sidebar and navigation */
-  nav, 
-  .sidebar,
-  [role="complementary"],
-  .topbar,
-  header,
-  .btn-ghost,
-  .btn-primary,
-  .btn-teal,
-  button:not(.no-print),
-  [class*="Sign out"] {
+  main > *:not(.fixed) {
     display: none !important;
   }
 
-  /* Format document */
-  .document,
-  .invoice-document,
-  .bill-document {
-    width: 100% !important;
-    height: auto !important;
-    margin: 0 !important;
+  main .fixed.inset-0 {
+    position: static !important;
+    background: none !important;
     padding: 0 !important;
-    box-shadow: none !important;
-    page-break-after: avoid !important;
-    background: white !important;
+    overflow: visible !important;
   }
 
-  /* Modal styling for print */
-  .modal-content,
-  [role="dialog"] {
-    position: static !important;
-    width: 100% !important;
-    height: auto !important;
-    background: white !important;
+  main .fixed.inset-0 > div {
     box-shadow: none !important;
-    border: none !important;
     margin: 0 !important;
-    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  button:not(.no-print) {
+    display: none !important;
   }
 
   /* Table styling */

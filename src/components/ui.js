@@ -10,3 +10,17 @@ export function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString();
 }
+
+/*
+  Today's date in the browser's local timezone, formatted for a <input
+  type="date"> default value. `new Date().toISOString()` always returns the
+  UTC date, which rolls over to "tomorrow" for anyone west of UTC before
+  midnight local time — this uses the local calendar date instead.
+*/
+export function todayLocalISODate() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

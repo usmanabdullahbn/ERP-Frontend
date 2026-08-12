@@ -1,5 +1,6 @@
 const STYLES = {
   DRAFT: 'bg-slate-100 text-slate-600',
+  POSTING: 'bg-ledger-amberLight text-ledger-amber',
   POSTED: 'bg-ledger-tealLight text-ledger-teal',
   PARTIALLY_PAID: 'bg-ledger-amberLight text-ledger-amber',
   PAID: 'bg-emerald-100 text-emerald-700',

@@ -1,24 +1,27 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
+import { formatMoney } from '../../components/ui';
 
 export default function ProfitAndLoss() {
   const [data, setData] = useState(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [error, setError] = useState('');
 
   const load = () => {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    api.get('/reports/profit-and-loss', { params }).then((res) => setData(res.data));
+    api.get('/reports/profit-and-loss', { params }).then((res) => setData(res.data)).catch(() => setError('Could not load the profit & loss report.'));
   };
   useEffect(() => { load(); }, []);
 
-  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const money = formatMoney;
 
   return (
     <PageLayout title="Profit &amp; Loss">
+      {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="flex items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>
