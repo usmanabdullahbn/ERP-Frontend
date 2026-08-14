@@ -2,16 +2,32 @@ import { useEffect, useRef } from 'react';
 
 export default function Modal({ open, onClose, title, children, width = 'max-w-lg' }) {
   const panelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.focus();
+
+    const focusTarget = panelRef.current?.querySelector(
+      'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (focusTarget) {
+      focusTarget.focus();
+    } else {
+      panelRef.current?.focus();
+    }
+
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
+
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

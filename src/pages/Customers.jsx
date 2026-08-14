@@ -8,7 +8,7 @@ import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
 
-const empty = { name: '', email: '', phone: '', address: '', taxNumber: '', openingBalance: 0, creditLimit: 0 };
+const empty = { name: '', email: '', phone: '', address: '', taxNumber: '', discountRate: 0, openingBalance: 0, creditLimit: 0 };
 
 export default function Customers() {
   const { hasPermission } = useAuth();
@@ -126,13 +126,16 @@ export default function Customers() {
           <Field label="Address"><textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" rows={2} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tax Number"><input value={form.taxNumber} onChange={(e) => setForm({ ...form, taxNumber: e.target.value })} className="input" /></Field>
-            <Field label="Credit Limit"><input type="number" min="0" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} className="input font-figures" /></Field>
+            <Field label="Customer Discount %"><input type="number" min="0" max="100" step="0.01" value={form.discountRate} onChange={(e) => setForm({ ...form, discountRate: Number(e.target.value) })} className="input font-figures" /></Field>
           </div>
-          {!editing && (
-            <Field label="Opening Balance (amount owed to you)">
-              <input type="number" min="0" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} className="input font-figures" />
-            </Field>
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Credit Limit"><input type="number" min="0" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} className="input font-figures" /></Field>
+            {!editing && (
+              <Field label="Opening Balance (amount owed to you)">
+                <input type="number" min="0" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} className="input font-figures" />
+              </Field>
+            )}
+          </div>
           <button type="submit" disabled={submitting} className="mt-2 bg-ledger-teal text-white rounded-lg py-2 text-sm font-medium hover:bg-teal-800 disabled:opacity-60">
             {submitting ? 'Saving…' : editing ? 'Save changes' : 'Create customer'}
           </button>

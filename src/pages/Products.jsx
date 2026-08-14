@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { Plus, AlertTriangle, Pencil } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -7,13 +7,14 @@ import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
 
-const empty = { name: '', category: '', unit: 'pcs', type: 'STOCK', costPrice: 0, salePrice: 0, taxRate: 0, reorderLevel: 0, openingStock: 0 };
+const empty = { sku: '', name: '', category: '', unit: 'pcs', type: 'STOCK', costPrice: 0, salePrice: 0, taxRate: 0, reorderLevel: 0, openingStock: 0 };
 
 export default function Products() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('inventory.manage');
   const [products, setProducts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +25,8 @@ export default function Products() {
   const load = () => api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setForm(empty); setError(''); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ ...p, openingStock: Number(p.totalStock || 0) }); setError(''); setModalOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
@@ -32,9 +34,14 @@ export default function Products() {
     setError('');
     setSubmitting(true);
     try {
-      await api.post('/products', form);
+      if (editing) {
+        await api.put(`/products/${editing._id}`, form);
+      } else {
+        await api.post('/products', form);
+      }
       setModalOpen(false);
       setForm(empty);
+      setEditing(null);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save product.');
@@ -65,7 +72,17 @@ export default function Products() {
           {r.type === 'STOCK' ? r.totalStock : '—'}
         </span>
       )
-    }
+    },
+    { key: 'actions', label: '', align: 'right', render: (r) => (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+          className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+          title="Edit product"
+        >
+          <Pencil size={16} />
+        </button>
+      ) } 
   ];
 
   return (
@@ -80,13 +97,19 @@ export default function Products() {
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={products} onRowClick={openDetail} />
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Product">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editing ? 'Edit Product' : 'New Product'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">SKU</span>
+              <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+            </label>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Category</span>
@@ -131,7 +154,7 @@ export default function Products() {
               </label>
             </div>
           )}
-          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create product'}</button>
+          <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : editing ? 'Save changes' : 'Create product'}</button>
         </form>
       </Modal>
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -10,7 +11,9 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [whatsappStatus, setWhatsappStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,6 +23,21 @@ export default function Login() {
     setSubmitting(false);
     if (res.ok) navigate('/');
     else setError(res.message);
+  };
+
+  const handleSendTestMessage = async () => {
+    setWhatsappStatus('');
+    setSendingTest(true);
+
+    try {
+      const { data } = await api.post('/whatsapp/test', { to: '03492045983' });
+      setWhatsappStatus(data.message || 'WhatsApp test message sent successfully.');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to send WhatsApp test message.';
+      setWhatsappStatus(message);
+    } finally {
+      setSendingTest(false);
+    }
   };
 
   return (
@@ -81,6 +99,21 @@ export default function Login() {
             >
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
+
+            <button
+              type="button"
+              onClick={handleSendTestMessage}
+              disabled={sendingTest}
+              className="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-60"
+            >
+              {sendingTest ? 'Sending test…' : 'Send test WhatsApp to 03492045983'}
+            </button>
+
+            {whatsappStatus && (
+              <div className={`text-xs rounded-lg px-3 py-2 ${whatsappStatus.toLowerCase().includes('success') || whatsappStatus.toLowerCase().includes('sent') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                {whatsappStatus}
+              </div>
+            )}
           </form>
         </div>
 
