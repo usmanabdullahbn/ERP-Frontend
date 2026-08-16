@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Printer } from 'lucide-react';
+import { Plus, Pencil, Printer, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
@@ -20,6 +21,9 @@ export default function Suppliers() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
   const [statementFor, setStatementFor] = useState(null);
   const [statement, setStatement] = useState(null);
   const [statementFrom, setStatementFrom] = useState('');
@@ -63,6 +67,23 @@ export default function Suppliers() {
     window.print();
   };
 
+  const removeSupplier = async (supplier) => {
+    setConfirmMessage(`Delete supplier ${supplier.name}? This cannot be undone.`);
+    setConfirmAction(() => () => performRemoveSupplier(supplier._id));
+    setConfirmOpen(true);
+  };
+
+  const performRemoveSupplier = async (id) => {
+    try {
+      await api.delete(`/suppliers/${id}`);
+      setConfirmOpen(false);
+      load();
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Could not delete supplier.');
+      setConfirmOpen(false);
+    }
+  };
+
   const save = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -90,14 +111,26 @@ export default function Suppliers() {
     { key: 'openingBalance', label: 'Opening Bal.', align: 'right', mono: true, render: (r) => money(r.openingBalance) },
     { key: 'status', label: 'Status', render: (r) => <Badge status={r.isActive ? 'ACTIVE' : 'INACTIVE'} /> },
     { key: 'actions', label: '', align: 'right', render: (r) => (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); openEdit(r); }}
-          className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
-          title="Edit supplier"
-        >
-          <Pencil size={16} />
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openEdit(r); }}
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+            title="Edit supplier"
+          >
+            <Pencil size={16} />
+          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); removeSupplier(r); }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-rose-200"
+              title="Delete supplier"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       )
     }
   ];
@@ -113,6 +146,18 @@ export default function Suppliers() {
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <DataTable columns={columns} data={suppliers} onRowClick={openStatement} />
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Supplier"
+        message={confirmMessage}
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          if (confirmAction) confirmAction();
+        }}
+      />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editing ? 'Edit Supplier' : 'New Supplier'}>
         <form onSubmit={save} className="flex flex-col gap-3">
