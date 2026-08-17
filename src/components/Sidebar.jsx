@@ -15,6 +15,7 @@ const SECTIONS = [
     perm: ['sales.view', 'sales.manage'],
     items: [
       { to: '/customers', label: 'Customers', icon: Users },
+      { to: '/orders', label: 'Orders' },
       { to: '/invoices', label: 'Invoices' },
       { to: '/receipts', label: 'Receipts' }
     ]
@@ -53,6 +54,8 @@ const SECTIONS = [
       { to: '/reports/profit-and-loss', label: 'Profit & Loss' },
       { to: '/reports/balance-sheet', label: 'Balance Sheet' },
       { to: '/reports/stock-summary', label: 'Stock Summary' },
+      { to: '/reports/customer-ledger', label: 'Customer Ledger' },
+      { to: '/reports/supplier-ledger', label: 'Supplier Ledger' },
       { to: '/reports/aged-receivables', label: 'Aged Receivables' },
       { to: '/reports/aged-payables', label: 'Aged Payables' }
     ]

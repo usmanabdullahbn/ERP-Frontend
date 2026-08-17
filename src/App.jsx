@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Suppliers from './pages/Suppliers';
+import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Bills from './pages/Bills';
 import Receipts from './pages/Receipts';
@@ -22,6 +23,8 @@ import TrialBalance from './pages/reports/TrialBalance';
 import ProfitAndLoss from './pages/reports/ProfitAndLoss';
 import BalanceSheet from './pages/reports/BalanceSheet';
 import StockSummary from './pages/reports/StockSummary';
+import CustomerLedger from './pages/reports/CustomerLedger';
+import SupplierLedger from './pages/reports/SupplierLedger';
 import AgedReceivables from './pages/reports/AgedReceivables';
 import AgedPayables from './pages/reports/AgedPayables';
 
@@ -46,6 +49,7 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
         <Route path="/customers" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Customers /></ProtectedRoute>} />
+        <Route path="/orders" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices /></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Receipts /></ProtectedRoute>} />
 
@@ -64,6 +68,8 @@ export default function App() {
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
         <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
         <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
+        <Route path="/reports/customer-ledger" element={<ProtectedRoute permission="reports.view"><CustomerLedger /></ProtectedRoute>} />
+        <Route path="/reports/supplier-ledger" element={<ProtectedRoute permission="reports.view"><SupplierLedger /></ProtectedRoute>} />
         <Route path="/reports/aged-receivables" element={<ProtectedRoute permission="reports.view"><AgedReceivables /></ProtectedRoute>} />
         <Route path="/reports/aged-payables" element={<ProtectedRoute permission="reports.view"><AgedPayables /></ProtectedRoute>} />
 
