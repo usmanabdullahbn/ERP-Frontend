@@ -6,8 +6,15 @@ import { formatMoney } from '../../components/ui';
 
 export default function StockSummary() {
   const [data, setData] = useState(null);
+  const [asOf, setAsOf] = useState('');
   const [error, setError] = useState('');
-  useEffect(() => { api.get('/reports/stock-summary').then((res) => setData(res.data)).catch(() => setError('Could not load the stock summary.')); }, []);
+
+  const load = () => {
+    const params = {};
+    if (asOf) params.asOf = asOf;
+    api.get('/reports/stock-summary', { params }).then((res) => setData(res.data)).catch(() => setError('Could not load the stock summary.'));
+  };
+  useEffect(() => { load(); }, []);
 
   const money = formatMoney;
 
@@ -23,6 +30,12 @@ export default function StockSummary() {
   return (
     <PageLayout title="Stock Summary">
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+      <div className="flex items-end gap-3 mb-4">
+        <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
+          <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
+        <button onClick={load} className="btn-primary">Apply</button>
+        {asOf && <span className="text-xs text-slate-400 pb-2">Showing stock as it stood on {asOf}. Stock value still uses current cost price.</span>}
+      </div>
       {data && (
         <>
           <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-card p-5 flex justify-between items-center">

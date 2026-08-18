@@ -6,14 +6,20 @@ import { formatMoney } from '../../components/ui';
 
 export default function PendingOrders() {
   const [rows, setRows] = useState([]);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
     api
-      .get('/reports/pending-orders')
+      .get('/reports/pending-orders', { params })
       .then((res) => setRows(res.data))
       .catch(() => setError('Could not load pending orders.'));
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
 
   const money = formatMoney;
 
@@ -32,6 +38,13 @@ export default function PendingOrders() {
   return (
     <PageLayout title="Pending Orders">
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+      <div className="flex items-end gap-3 mb-4">
+        <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>
+        <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">To</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input" /></label>
+        <button onClick={load} className="btn-primary">Apply</button>
+      </div>
       <DataTable columns={columns} data={rows} emptyMessage="No pending orders found." />
     </PageLayout>
   );

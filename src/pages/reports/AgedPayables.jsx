@@ -2,12 +2,21 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
-import { formatMoney } from '../../components/ui';
+import { formatMoney, todayLocalISODate } from '../../components/ui';
 
 export default function AgedPayables() {
   const [rows, setRows] = useState([]);
+  const [asOf, setAsOf] = useState(todayLocalISODate());
   const [error, setError] = useState('');
-  useEffect(() => { api.get('/reports/aged-payables').then((res) => setRows(res.data)).catch(() => setError('Could not load aged payables.')); }, []);
+
+  const load = () => {
+    const params = {};
+    if (asOf) params.asOf = asOf;
+    api.get('/reports/aged-payables', { params })
+      .then((res) => setRows(res.data.rows))
+      .catch(() => setError('Could not load aged payables.'));
+  };
+  useEffect(() => { load(); }, []);
 
   const money = formatMoney;
 
@@ -23,6 +32,11 @@ export default function AgedPayables() {
   return (
     <PageLayout title="Aged Payables">
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+      <div className="flex items-end gap-3 mb-4">
+        <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As on date</span>
+          <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
+        <button onClick={load} className="btn-primary">Apply</button>
+      </div>
       <DataTable columns={columns} data={rows} />
     </PageLayout>
   );

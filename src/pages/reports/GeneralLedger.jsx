@@ -7,6 +7,7 @@ export default function GeneralLedger() {
   const [data, setData] = useState([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [showBf, setShowBf] = useState(true);
   const [error, setError] = useState('');
 
   const load = () => {
@@ -30,6 +31,11 @@ export default function GeneralLedger() {
         <button onClick={load} className="btn-primary">Apply</button>
       </div>
 
+      <label className="mb-4 flex items-center gap-2 text-sm text-slate-600">
+        <input type="checkbox" checked={showBf} onChange={(e) => setShowBf(e.target.checked)} />
+        Show balance b/f
+      </label>
+
       {data.length > 0 && (
         <div className="space-y-6">
           {data.map((ledger) => (
@@ -50,6 +56,16 @@ export default function GeneralLedger() {
                   </tr>
                 </thead>
                 <tbody>
+                  {showBf && (
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      <td className="px-4 py-2">—</td>
+                      <td className="px-4 py-2 font-mono text-xs"></td>
+                      <td className="px-4 py-2 text-slate-600 font-medium">Balance b/f</td>
+                      <td className="px-4 py-2 text-right font-figures"></td>
+                      <td className="px-4 py-2 text-right font-figures"></td>
+                      <td className="px-4 py-2 text-right font-figures font-semibold">{money(ledger.openingBalance || 0)}</td>
+                    </tr>
+                  )}
                   {ledger.entries.map((entry, i) => (
                     <tr key={i} className="border-b border-slate-100">
                       <td className="px-4 py-2">{entry.date ? new Date(entry.date).toLocaleDateString() : '—'}</td>

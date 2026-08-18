@@ -10,6 +10,7 @@ export default function CustomerLedger() {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [showBf, setShowBf] = useState(true);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -36,15 +37,17 @@ export default function CustomerLedger() {
   const money = formatMoney;
 
   const ledgerColumns = [
-    { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
+    { key: 'date', label: 'Date', render: (r) => r._bf ? '—' : new Date(r.date).toLocaleDateString() },
     { key: 'type', label: 'Type' },
     { key: 'ref', label: 'Ref' },
-    { key: 'debit', label: 'Debit', align: 'right', mono: true, render: (r) => money(r.debit) },
-    { key: 'credit', label: 'Credit', align: 'right', mono: true, render: (r) => money(r.credit) },
+    { key: 'debit', label: 'Debit', align: 'right', mono: true, render: (r) => r._bf ? '' : money(r.debit) },
+    { key: 'credit', label: 'Credit', align: 'right', mono: true, render: (r) => r._bf ? '' : money(r.credit) },
     { key: 'balance', label: 'Balance', align: 'right', mono: true, render: (r) => money(r.balance) }
   ];
 
   const selectedLedger = rows[0];
+  const bfRow = selectedLedger ? { _bf: true, type: 'Balance b/f', ref: '', balance: selectedLedger.openingBalance || 0 } : null;
+  const tableRows = showBf && bfRow ? [bfRow, ...(selectedLedger?.entries || [])] : (selectedLedger?.entries || []);
 
   return (
     <PageLayout title="Customer Ledger">
@@ -70,6 +73,11 @@ export default function CustomerLedger() {
         </div>
       </div>
 
+      <label className="mb-4 flex items-center gap-2 text-sm text-slate-600">
+        <input type="checkbox" checked={showBf} onChange={(e) => setShowBf(e.target.checked)} />
+        Show balance b/f
+      </label>
+
       {selectedLedger && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex justify-between text-sm mb-2">
@@ -87,7 +95,7 @@ export default function CustomerLedger() {
         </div>
       )}
 
-      <DataTable columns={ledgerColumns} data={selectedLedger?.entries || []} />
+      <DataTable columns={ledgerColumns} data={tableRows} />
     </PageLayout>
   );
 }
