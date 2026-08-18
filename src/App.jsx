@@ -23,6 +23,11 @@ import TrialBalance from './pages/reports/TrialBalance';
 import ProfitAndLoss from './pages/reports/ProfitAndLoss';
 import BalanceSheet from './pages/reports/BalanceSheet';
 import StockSummary from './pages/reports/StockSummary';
+import PendingOrders from './pages/reports/PendingOrders';
+import SalesJournal from './pages/reports/SalesJournal';
+import PurchaseJournal from './pages/reports/PurchaseJournal';
+import BankActivity from './pages/reports/BankActivity';
+import GeneralLedger from './pages/reports/GeneralLedger';
 import CustomerLedger from './pages/reports/CustomerLedger';
 import SupplierLedger from './pages/reports/SupplierLedger';
 import AgedReceivables from './pages/reports/AgedReceivables';
@@ -68,6 +73,11 @@ export default function App() {
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
         <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
         <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
+        <Route path="/reports/pending-orders" element={<ProtectedRoute permission="reports.view"><PendingOrders /></ProtectedRoute>} />
+        <Route path="/reports/sales-journal" element={<ProtectedRoute permission="reports.view"><SalesJournal /></ProtectedRoute>} />
+        <Route path="/reports/purchase-journal" element={<ProtectedRoute permission="reports.view"><PurchaseJournal /></ProtectedRoute>} />
+        <Route path="/reports/bank-activity" element={<ProtectedRoute permission="reports.view"><BankActivity /></ProtectedRoute>} />
+        <Route path="/reports/general-ledger" element={<ProtectedRoute permission="reports.view"><GeneralLedger /></ProtectedRoute>} />
         <Route path="/reports/customer-ledger" element={<ProtectedRoute permission="reports.view"><CustomerLedger /></ProtectedRoute>} />
         <Route path="/reports/supplier-ledger" element={<ProtectedRoute permission="reports.view"><SupplierLedger /></ProtectedRoute>} />
         <Route path="/reports/aged-receivables" element={<ProtectedRoute permission="reports.view"><AgedReceivables /></ProtectedRoute>} />
