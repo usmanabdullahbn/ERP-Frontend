@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -48,8 +49,8 @@ export default function App() {
     <>
       <ScrollToTop />
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 

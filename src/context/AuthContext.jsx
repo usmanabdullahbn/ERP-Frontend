@@ -1,7 +1,17 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import api from '../api/client';
 
 const AuthContext = createContext(null);
+
+// setTimeout delays overflow to 1 on values >24.8 days; a 1d session never approaches that.
+function getTokenExpiryMs(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 /*
   Permissions always come from the server's role.permissions[] — never
@@ -48,6 +58,42 @@ export function AuthProvider({ children }) {
     }
   });
   const [loading, setLoading] = useState(false);
+  const logoutTimer = useRef(null);
+
+  const logout = useCallback(() => {
+    if (logoutTimer.current) {
+      clearTimeout(logoutTimer.current);
+      logoutTimer.current = null;
+    }
+    localStorage.removeItem('erp_token');
+    localStorage.removeItem('erp_user');
+    setUser(null);
+  }, []);
+
+  const scheduleAutoLogout = useCallback((token) => {
+    if (logoutTimer.current) {
+      clearTimeout(logoutTimer.current);
+      logoutTimer.current = null;
+    }
+    const expiryMs = token && getTokenExpiryMs(token);
+    if (!expiryMs) return;
+
+    const delay = expiryMs - Date.now();
+    if (delay <= 0) {
+      logout();
+      return;
+    }
+    logoutTimer.current = setTimeout(logout, delay);
+  }, [logout]);
+
+  // Resume the countdown on refresh/reopen so a session still expires 1d after login, not 1d after the next visit.
+  useEffect(() => {
+    scheduleAutoLogout(localStorage.getItem('erp_token'));
+    return () => {
+      if (logoutTimer.current) clearTimeout(logoutTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = useCallback(async (email, password) => {
     setLoading(true);
@@ -57,13 +103,14 @@ export function AuthProvider({ children }) {
       localStorage.setItem('erp_token', data.token);
       localStorage.setItem('erp_user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
+      scheduleAutoLogout(data.token);
       return { ok: true };
     } catch (err) {
       return { ok: false, message: err.response?.data?.message || 'Login failed.' };
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scheduleAutoLogout]);
 
   const register = useCallback(async (name, email, password) => {
     setLoading(true);
@@ -73,19 +120,14 @@ export function AuthProvider({ children }) {
       localStorage.setItem('erp_token', data.token);
       localStorage.setItem('erp_user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
+      scheduleAutoLogout(data.token);
       return { ok: true };
     } catch (err) {
       return { ok: false, message: err.response?.data?.message || 'Registration failed.' };
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const logout = useCallback(() => {
-    localStorage.removeItem('erp_token');
-    localStorage.removeItem('erp_user');
-    setUser(null);
-  }, []);
+  }, [scheduleAutoLogout]);
 
   const hasPermission = useCallback(
     (...perms) => {
