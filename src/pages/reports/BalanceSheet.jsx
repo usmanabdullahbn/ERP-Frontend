@@ -1,30 +1,58 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
-import { formatMoney } from '../../components/ui';
+import ReportExportButtons from '../../components/ReportExportButtons';
+import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
+import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
+
+const columns = [
+  { key: 'code', label: 'Code' },
+  { key: 'name', label: 'Account' },
+  { key: 'section', label: 'Section' },
+  { key: 'amount', label: 'Amount', align: 'right', money: true }
+];
 
 export default function BalanceSheet() {
   const [data, setData] = useState(null);
   const [asOf, setAsOf] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const load = () => {
+  const run = () => {
+    setLoading(true);
+    setError('');
     const params = {};
     if (asOf) params.asOf = asOf;
-    api.get('/reports/balance-sheet', { params }).then((res) => setData(res.data)).catch(() => setError('Could not load the balance sheet.'));
+    api.get('/reports/balance-sheet', { params })
+      .then((res) => setData(res.data))
+      .catch(() => setError('Could not load the balance sheet.'))
+      .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+
+  const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}`;
+  const exportRows = () => [
+    ...data.assets.map((r) => ({ ...r, section: 'Assets' })),
+    ...data.liabilities.map((r) => ({ ...r, section: 'Liabilities' })),
+    ...data.equity.map((r) => ({ ...r, section: 'Equity' }))
+  ];
+  const exportTotals = () => ['', '', 'Total', formatMoney(data.totalAssets)];
+  const exportPdf = () => downloadReportPdf({ title: 'Balance Sheet', subtitle, columns, rows: exportRows(), totals: exportTotals() });
+  const exportExcel = () => downloadReportExcel({ title: 'Balance Sheet', subtitle, columns, rows: exportRows(), totals: exportTotals() });
 
   const money = formatMoney;
 
   return (
-    <PageLayout title="Balance Sheet">
+    <PageLayout title="Balance Sheet" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="flex items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
-        <button onClick={load} className="btn-primary">Apply</button>
+        <button onClick={run} disabled={loading} className="btn-primary disabled:opacity-60">{loading ? 'Running…' : 'Run Report'}</button>
       </div>
+
+      {!data && !loading && (
+        <div className="text-center py-12 text-slate-400">Pick an "as of" date and click "Run Report" to view the balance sheet.</div>
+      )}
 
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

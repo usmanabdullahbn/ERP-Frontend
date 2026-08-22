@@ -15,6 +15,8 @@ import Receipts from './pages/Receipts';
 import Payments from './pages/Payments';
 import Products from './pages/Products';
 import Warehouses from './pages/Warehouses';
+import Assembly from './pages/Assembly';
+import StockAdjustments from './pages/StockAdjustments';
 import Bank from './pages/Bank';
 import ChartOfAccounts from './pages/ChartOfAccounts';
 import Journal from './pages/Journal';
@@ -65,6 +67,8 @@ export default function App() {
 
         <Route path="/products" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Products /></ProtectedRoute>} />
         <Route path="/warehouses" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Warehouses /></ProtectedRoute>} />
+        <Route path="/assembly" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Assembly /></ProtectedRoute>} />
+        <Route path="/stock-adjustments" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><StockAdjustments /></ProtectedRoute>} />
 
         <Route path="/bank" element={<ProtectedRoute permission={['banking.view', 'banking.manage']}><Bank /></ProtectedRoute>} />
         <Route path="/chart-of-accounts" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><ChartOfAccounts /></ProtectedRoute>} />

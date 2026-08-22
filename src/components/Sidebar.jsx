@@ -34,7 +34,9 @@ const SECTIONS = [
     perm: ['inventory.view', 'inventory.manage'],
     items: [
       { to: '/products', label: 'Products', icon: Package },
-      { to: '/warehouses', label: 'Warehouses' }
+      { to: '/warehouses', label: 'Warehouses' },
+      { to: '/assembly', label: 'Assembly' },
+      { to: '/stock-adjustments', label: 'Stock Adjustments' }
     ]
   },
   {
@@ -50,10 +52,7 @@ const SECTIONS = [
     title: 'Reports',
     perm: ['reports.view'],
     items: [
-      { to: '/reports/trial-balance', label: 'Trial Balance', icon: BarChart3 },
-      { to: '/reports/profit-and-loss', label: 'Profit & Loss' },
-      { to: '/reports/balance-sheet', label: 'Balance Sheet' },
-      { to: '/reports/stock-summary', label: 'Stock Summary' },
+      { to: '/reports/stock-summary', label: 'Stock Summary', icon: BarChart3 },
       { to: '/reports/pending-orders', label: 'Pending Orders' },
       { to: '/reports/sales-journal', label: 'Sales Journal' },
       { to: '/reports/purchase-journal', label: 'Purchase Journal' },

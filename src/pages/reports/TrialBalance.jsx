@@ -1,34 +1,57 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
-import { formatMoney } from '../../components/ui';
+import ReportExportButtons from '../../components/ReportExportButtons';
+import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
+import { formatMoney, formatDate } from '../../components/ui';
+
+const columns = [
+  { key: 'code', label: 'Code' },
+  { key: 'name', label: 'Account' },
+  { key: 'type', label: 'Type' },
+  { key: 'debit', label: 'Debit', align: 'right', money: true },
+  { key: 'credit', label: 'Credit', align: 'right', money: true }
+];
 
 export default function TrialBalance() {
   const [data, setData] = useState(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const load = () => {
+  const run = () => {
+    setLoading(true);
+    setError('');
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    api.get('/reports/trial-balance', { params }).then((res) => setData(res.data)).catch(() => setError('Could not load the trial balance.'));
+    api.get('/reports/trial-balance', { params })
+      .then((res) => setData(res.data))
+      .catch(() => setError('Could not load the trial balance.'))
+      .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
+  const exportPdf = () => downloadReportPdf({ title: 'Trial Balance', subtitle, columns, rows: data.rows, totals: ['', '', 'Total', formatMoney(data.totalDebit), formatMoney(data.totalCredit)] });
+  const exportExcel = () => downloadReportExcel({ title: 'Trial Balance', subtitle, columns, rows: data.rows, totals: ['', '', 'Total', formatMoney(data.totalDebit), formatMoney(data.totalCredit)] });
 
   const money = formatMoney;
 
   return (
-    <PageLayout title="Trial Balance">
+    <PageLayout title="Trial Balance" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="flex items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">To</span>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input" /></label>
-        <button onClick={load} className="btn-primary">Apply</button>
+        <button onClick={run} disabled={loading} className="btn-primary disabled:opacity-60">{loading ? 'Running…' : 'Run Report'}</button>
       </div>
+
+      {!data && !loading && (
+        <div className="text-center py-12 text-slate-400">Select a date range and click "Run Report" to view the trial balance.</div>
+      )}
 
       {data && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
