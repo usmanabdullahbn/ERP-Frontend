@@ -3,7 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const columns = [
   { key: 'code', label: 'Code' },
@@ -15,8 +15,8 @@ const columns = [
 
 export default function TrialBalance() {
   const [data, setData] = useState(null);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(firstOfMonthLocalISODate());
+  const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

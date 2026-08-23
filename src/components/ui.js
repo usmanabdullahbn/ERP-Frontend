@@ -24,3 +24,22 @@ export function todayLocalISODate() {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+function toLocalISODate(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/* First day of the current local month, for a report's default "From" date. */
+export function firstOfMonthLocalISODate() {
+  const d = new Date();
+  return toLocalISODate(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+/* Last day of the current local month, for a report's default "To" date. */
+export function lastOfMonthLocalISODate() {
+  const d = new Date();
+  return toLocalISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}

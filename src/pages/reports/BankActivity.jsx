@@ -3,8 +3,9 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const columns = [
   { key: 'date', label: 'Date', render: (r) => r.date ? new Date(r.date).toLocaleDateString() : '—' },
@@ -28,9 +29,9 @@ const exportColumns = [
 
 export default function BankActivity() {
   const [rows, setRows] = useState(null);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [bankId, setBankId] = useState('');
+  const [from, setFrom] = useState(firstOfMonthLocalISODate());
+  const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [bankIds, setBankIds] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,15 +46,15 @@ export default function BankActivity() {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    if (bankId) params.bankId = bankId;
+    if (bankIds.length) params.bankId = bankIds.join(',');
     api.get('/reports/bank-activity', { params })
       .then((res) => setRows(res.data))
       .catch(() => setError('Could not load bank activity.'))
       .finally(() => setLoading(false));
   };
 
-  const bankName = bankAccounts.find((b) => b._id === bankId)?.name;
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${bankName ? ` — ${bankName}` : ''}`;
+  const bankNames = bankAccounts.filter((b) => bankIds.includes(b._id)).map((b) => b.name).join(', ');
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${bankNames ? ` — ${bankNames}` : ''}`;
   const exportPdf = () => downloadReportPdf({ title: 'Bank Activity', subtitle, columns: exportColumns, rows });
   const exportExcel = () => downloadReportExcel({ title: 'Bank Activity', subtitle, columns: exportColumns, rows });
 
@@ -63,12 +64,13 @@ export default function BankActivity() {
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Bank</span>
-          <select value={bankId} onChange={(e) => setBankId(e.target.value)} className="input min-w-[220px]">
-            <option value="">All Banks</option>
-            {bankAccounts.map((bank) => (
-              <option key={bank._id} value={bank._id}>{bank.name} ({bank.accountNumber || '—'})</option>
-            ))}
-          </select>
+          <MultiSelect
+            className="min-w-[220px]"
+            options={bankAccounts.map((bank) => ({ value: bank._id, label: `${bank.name} (${bank.accountNumber || '—'})` }))}
+            selected={bankIds}
+            onChange={setBankIds}
+            placeholder="All banks"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>

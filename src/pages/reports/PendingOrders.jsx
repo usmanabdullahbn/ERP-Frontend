@@ -3,8 +3,9 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const columns = [
   { key: 'orderNumber', label: 'Order #' },
@@ -33,9 +34,9 @@ const exportColumns = [
 export default function PendingOrders() {
   const [rows, setRows] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [customerId, setCustomerId] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [customerIds, setCustomerIds] = useState([]);
+  const [from, setFrom] = useState(firstOfMonthLocalISODate());
+  const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -49,15 +50,15 @@ export default function PendingOrders() {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    if (customerId) params.customerId = customerId;
+    if (customerIds.length) params.customerId = customerIds.join(',');
     api.get('/reports/pending-orders', { params })
       .then((res) => setRows(res.data))
       .catch(() => setError('Could not load pending orders.'))
       .finally(() => setLoading(false));
   };
 
-  const customerName = customers.find((c) => c._id === customerId)?.name;
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${customerName ? ` — ${customerName}` : ''}`;
+  const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${customerNames ? ` — ${customerNames}` : ''}`;
   const exportPdf = () => downloadReportPdf({ title: 'Pending Orders', subtitle, columns: exportColumns, rows });
   const exportExcel = () => downloadReportExcel({ title: 'Pending Orders', subtitle, columns: exportColumns, rows });
 
@@ -67,10 +68,13 @@ export default function PendingOrders() {
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Customer</span>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="input min-w-[200px]">
-            <option value="">All customers</option>
-            {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
+          <MultiSelect
+            className="min-w-[200px]"
+            options={customers.map((c) => ({ value: c._id, label: c.name }))}
+            selected={customerIds}
+            onChange={setCustomerIds}
+            placeholder="All customers"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>

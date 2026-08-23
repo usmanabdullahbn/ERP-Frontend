@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
 
@@ -27,7 +28,7 @@ const exportColumns = [
 export default function AgedReceivables() {
   const [rows, setRows] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [customerId, setCustomerId] = useState('');
+  const [customerIds, setCustomerIds] = useState([]);
   const [asOf, setAsOf] = useState(todayLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,15 +42,15 @@ export default function AgedReceivables() {
     setError('');
     const params = {};
     if (asOf) params.asOf = asOf;
-    if (customerId) params.customerId = customerId;
+    if (customerIds.length) params.customerId = customerIds.join(',');
     api.get('/reports/aged-receivables', { params })
       .then((res) => setRows(res.data.rows))
       .catch(() => setError('Could not load aged receivables.'))
       .finally(() => setLoading(false));
   };
 
-  const customerName = customers.find((c) => c._id === customerId)?.name;
-  const subtitle = `As on ${formatDate(asOf)}${customerName ? ` — ${customerName}` : ''}`;
+  const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
+  const subtitle = `As on ${formatDate(asOf)}${customerNames ? ` — ${customerNames}` : ''}`;
   const exportPdf = () => downloadReportPdf({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows });
   const exportExcel = () => downloadReportExcel({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows });
 
@@ -59,10 +60,13 @@ export default function AgedReceivables() {
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Customer</span>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="input min-w-[200px]">
-            <option value="">All customers</option>
-            {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
+          <MultiSelect
+            className="min-w-[200px]"
+            options={customers.map((c) => ({ value: c._id, label: c.name }))}
+            selected={customerIds}
+            onChange={setCustomerIds}
+            placeholder="All customers"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As on date</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>

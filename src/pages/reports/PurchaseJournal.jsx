@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const columns = [
   { key: 'date', label: 'Date', render: (r) => r.date ? new Date(r.date).toLocaleDateString() : '—' },
@@ -30,9 +31,9 @@ const exportColumns = [
 export default function PurchaseJournal() {
   const [data, setData] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
-  const [supplierId, setSupplierId] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [supplierIds, setSupplierIds] = useState([]);
+  const [from, setFrom] = useState(firstOfMonthLocalISODate());
+  const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -46,7 +47,7 @@ export default function PurchaseJournal() {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    if (supplierId) params.supplierId = supplierId;
+    if (supplierIds.length) params.supplierId = supplierIds.join(',');
     api.get('/reports/purchase-journal', { params })
       .then((res) => setData(res.data))
       .catch(() => setError('Could not load purchase journal.'))
@@ -54,8 +55,8 @@ export default function PurchaseJournal() {
   };
 
   const money = formatMoney;
-  const supplierName = suppliers.find((s) => s._id === supplierId)?.name;
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierName ? ` — ${supplierName}` : ''}`;
+  const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}`;
   const exportTotals = () => ['', '', '', '', '', 'Total', money(data.totalDebit), money(data.totalCredit)];
   const exportPdf = () => downloadReportPdf({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: data.rows, totals: exportTotals() });
   const exportExcel = () => downloadReportExcel({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: data.rows, totals: exportTotals() });
@@ -66,10 +67,13 @@ export default function PurchaseJournal() {
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
-          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="input min-w-[200px]">
-            <option value="">All suppliers</option>
-            {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-          </select>
+          <MultiSelect
+            className="min-w-[200px]"
+            options={suppliers.map((s) => ({ value: s._id, label: s.name }))}
+            selected={supplierIds}
+            onChange={setSupplierIds}
+            placeholder="All suppliers"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>

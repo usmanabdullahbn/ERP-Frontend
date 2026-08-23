@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const exportColumns = [
   { key: 'account', label: 'Account' },
@@ -18,18 +19,18 @@ const exportColumns = [
 export default function GeneralLedger() {
   const [data, setData] = useState(null);
   const [accounts, setAccounts] = useState([]);
-  const [bankAccounts, setBankAccounts] = useState([]);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [accountId, setAccountId] = useState('');
-  const [bankId, setBankId] = useState('');
+  const [from, setFrom] = useState(firstOfMonthLocalISODate());
+  const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [accountIds, setAccountIds] = useState([]);
   const [showBf, setShowBf] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Bank/cash accounts already show up in this list — each one gets its own
+  // linked GL account automatically when it's created — so a single Account
+  // filter covers both without a separate Bank Account field.
   useEffect(() => {
     api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setError('Could not load chart of accounts.'));
-    api.get('/bank/accounts').then((res) => setBankAccounts(res.data)).catch(() => setError('Could not load bank accounts.'));
   }, []);
 
   const run = () => {
@@ -38,27 +39,11 @@ export default function GeneralLedger() {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    if (accountId) params.accountId = accountId;
-    if (bankId) params.bankId = bankId;
+    if (accountIds.length) params.accountId = accountIds.join(',');
     api.get('/reports/general-ledger', { params })
       .then((res) => setData(Array.isArray(res.data) ? res.data : [res.data].filter(Boolean)))
       .catch(() => setError('Could not load general ledger.'))
       .finally(() => setLoading(false));
-  };
-
-  const handleAccountChange = (value) => {
-    setAccountId(value);
-    if (value) setBankId('');
-  };
-
-  const handleBankChange = (value) => {
-    setBankId(value);
-    if (value) {
-      const selectedBank = bankAccounts.find((bank) => bank._id === value);
-      setAccountId(selectedBank?.account || '');
-    } else {
-      setAccountId('');
-    }
   };
 
   const money = formatMoney;
@@ -82,22 +67,14 @@ export default function GeneralLedger() {
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
-          <span className="block text-xs font-medium text-slate-600 mb-1">Chart of Account</span>
-          <select value={accountId} onChange={(e) => handleAccountChange(e.target.value)} className="input min-w-[240px]">
-            <option value="">All Accounts</option>
-            {accounts.map((account) => (
-              <option key={account._id} value={account._id}>{account.code} - {account.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-slate-600 mb-1">Bank Account</span>
-          <select value={bankId} onChange={(e) => handleBankChange(e.target.value)} className="input min-w-[220px]">
-            <option value="">All Banks</option>
-            {bankAccounts.map((bank) => (
-              <option key={bank._id} value={bank._id}>{bank.name} ({bank.accountNumber || '—'})</option>
-            ))}
-          </select>
+          <span className="block text-xs font-medium text-slate-600 mb-1">Account</span>
+          <MultiSelect
+            className="min-w-[260px]"
+            options={accounts.map((account) => ({ value: account._id, label: `${account.code} - ${account.name}` }))}
+            selected={accountIds}
+            onChange={setAccountIds}
+            placeholder="All accounts"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>

@@ -14,7 +14,7 @@ const columns = [
 
 export default function BalanceSheet() {
   const [data, setData] = useState(null);
-  const [asOf, setAsOf] = useState('');
+  const [asOf, setAsOf] = useState(todayLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

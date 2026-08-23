@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import MultiSelect from '../../components/MultiSelect';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
 
@@ -27,7 +28,7 @@ const exportColumns = [
 export default function AgedPayables() {
   const [rows, setRows] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
-  const [supplierId, setSupplierId] = useState('');
+  const [supplierIds, setSupplierIds] = useState([]);
   const [asOf, setAsOf] = useState(todayLocalISODate());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,15 +42,15 @@ export default function AgedPayables() {
     setError('');
     const params = {};
     if (asOf) params.asOf = asOf;
-    if (supplierId) params.supplierId = supplierId;
+    if (supplierIds.length) params.supplierId = supplierIds.join(',');
     api.get('/reports/aged-payables', { params })
       .then((res) => setRows(res.data.rows))
       .catch(() => setError('Could not load aged payables.'))
       .finally(() => setLoading(false));
   };
 
-  const supplierName = suppliers.find((s) => s._id === supplierId)?.name;
-  const subtitle = `As on ${formatDate(asOf)}${supplierName ? ` — ${supplierName}` : ''}`;
+  const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
+  const subtitle = `As on ${formatDate(asOf)}${supplierNames ? ` — ${supplierNames}` : ''}`;
   const exportPdf = () => downloadReportPdf({ title: 'Aged Payables', subtitle, columns: exportColumns, rows });
   const exportExcel = () => downloadReportExcel({ title: 'Aged Payables', subtitle, columns: exportColumns, rows });
 
@@ -59,10 +60,13 @@ export default function AgedPayables() {
       <div className="flex items-end gap-3 mb-4 flex-wrap">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
-          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="input min-w-[200px]">
-            <option value="">All suppliers</option>
-            {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-          </select>
+          <MultiSelect
+            className="min-w-[200px]"
+            options={suppliers.map((s) => ({ value: s._id, label: s.name }))}
+            selected={supplierIds}
+            onChange={setSupplierIds}
+            placeholder="All suppliers"
+          />
         </label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As on date</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
