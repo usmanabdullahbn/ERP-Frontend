@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, Printer } from 'lucide-react';
+import { Plus, Trash2, Pencil, Printer, Ban } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -230,6 +230,16 @@ export default function Bills() {
               title="Delete bill"
             >
               <Trash2 size={16} />
+            </button>
+          )}
+          {canManage && !['DRAFT', 'VOID', 'POSTING'].includes(r.status) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleVoidClick(r._id); }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-600 hover:border-slate-300"
+              title="Void bill"
+            >
+              <Ban size={16} />
             </button>
           )}
         </div>
