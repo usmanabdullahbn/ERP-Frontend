@@ -10,6 +10,7 @@ import Customers from './pages/Customers';
 import Suppliers from './pages/Suppliers';
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
+import PurchaseOrders from './pages/PurchaseOrders';
 import Bills from './pages/Bills';
 import Receipts from './pages/Receipts';
 import Payments from './pages/Payments';
@@ -27,6 +28,7 @@ import ProfitAndLoss from './pages/reports/ProfitAndLoss';
 import BalanceSheet from './pages/reports/BalanceSheet';
 import StockSummary from './pages/reports/StockSummary';
 import PendingOrders from './pages/reports/PendingOrders';
+import PendingPurchaseOrders from './pages/reports/PendingPurchaseOrders';
 import SalesJournal from './pages/reports/SalesJournal';
 import PurchaseJournal from './pages/reports/PurchaseJournal';
 import BankActivity from './pages/reports/BankActivity';
@@ -62,6 +64,7 @@ export default function App() {
         <Route path="/receipts" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Receipts /></ProtectedRoute>} />
 
         <Route path="/suppliers" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Suppliers /></ProtectedRoute>} />
+        <Route path="/purchase-orders" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders /></ProtectedRoute>} />
         <Route path="/bills" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills /></ProtectedRoute>} />
         <Route path="/payments" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Payments /></ProtectedRoute>} />
 
@@ -79,6 +82,7 @@ export default function App() {
         <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
         <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
         <Route path="/reports/pending-orders" element={<ProtectedRoute permission="reports.view"><PendingOrders /></ProtectedRoute>} />
+        <Route path="/reports/pending-purchase-orders" element={<ProtectedRoute permission="reports.view"><PendingPurchaseOrders /></ProtectedRoute>} />
         <Route path="/reports/sales-journal" element={<ProtectedRoute permission="reports.view"><SalesJournal /></ProtectedRoute>} />
         <Route path="/reports/purchase-journal" element={<ProtectedRoute permission="reports.view"><PurchaseJournal /></ProtectedRoute>} />
         <Route path="/reports/bank-activity" element={<ProtectedRoute permission="reports.view"><BankActivity /></ProtectedRoute>} />

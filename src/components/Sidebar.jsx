@@ -25,6 +25,7 @@ const SECTIONS = [
     perm: ['purchases.view', 'purchases.manage'],
     items: [
       { to: '/suppliers', label: 'Suppliers', icon: Truck },
+      { to: '/purchase-orders', label: 'Purchase Orders' },
       { to: '/bills', label: 'Bills' },
       { to: '/payments', label: 'Payments' }
     ]
@@ -54,6 +55,7 @@ const SECTIONS = [
     items: [
       { to: '/reports/stock-summary', label: 'Stock Summary', icon: BarChart3 },
       { to: '/reports/pending-orders', label: 'Pending Orders' },
+      { to: '/reports/pending-purchase-orders', label: 'Pending Purchase Orders' },
       { to: '/reports/sales-journal', label: 'Sales Journal' },
       { to: '/reports/purchase-journal', label: 'Purchase Journal' },
       { to: '/reports/bank-activity', label: 'Bank Activity' },
