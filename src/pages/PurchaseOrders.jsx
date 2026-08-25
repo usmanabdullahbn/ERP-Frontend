@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowRight, Printer } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -34,6 +34,9 @@ export default function PurchaseOrders() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
+
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState('');
 
   const load = () => api.get('/purchase-orders').then((res) => setPurchaseOrders(res.data)).catch(() => setLoadError('Could not load purchase orders.'));
 
@@ -102,12 +105,19 @@ export default function PurchaseOrders() {
       if (editingPO) await api.put(`/purchase-orders/${editingPO._id}`, payload);
       else await api.post('/purchase-orders', payload);
       setModalOpen(false);
+      setDetail(null);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save purchase order.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openDetail = async (po) => {
+    setDetailError('');
+    const { data } = await api.get(`/purchase-orders/${po._id}`);
+    setDetail(data);
   };
 
   const openEdit = async (po) => {
@@ -138,6 +148,7 @@ export default function PurchaseOrders() {
   const performDelete = async (id) => {
     try {
       await api.delete(`/purchase-orders/${id}`);
+      if (detail?._id === id) setDetail(null);
       load();
       setConfirmOpen(false);
     } catch (err) {
@@ -149,9 +160,12 @@ export default function PurchaseOrders() {
   const handleConvertToBill = async (id) => {
     try {
       await api.post(`/purchase-orders/${id}/to-bill`);
+      setDetail(null);
       load();
     } catch (err) {
-      setLoadError(err.response?.data?.message || 'Could not convert purchase order to bill.');
+      const message = err.response?.data?.message || 'Could not convert purchase order to bill.';
+      setLoadError(message);
+      setDetailError(message);
     }
   };
 
@@ -167,7 +181,7 @@ export default function PurchaseOrders() {
     {
       key: 'actions', label: '', align: 'right',
       render: (r) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           {r.status !== 'BILLED' && r.status !== 'CANCELLED' && (
             <button type="button" onClick={() => openEdit(r)} className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300" title="Edit purchase order">
               <Pencil size={16} />
@@ -193,7 +207,7 @@ export default function PurchaseOrders() {
       <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Purchase Order</button>
     )}>
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={purchaseOrders} />
+      <DataTable columns={columns} data={purchaseOrders} onRowClick={openDetail} />
 
       <ConfirmModal
         open={confirmOpen}
@@ -278,6 +292,102 @@ export default function PurchaseOrders() {
             {submitting ? 'Saving…' : editingPO ? 'Save purchase order' : 'Create purchase order'}
           </button>
         </div>
+      </Modal>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Purchase Order ${detail?.poNumber || ''}`} width="max-w-2xl">
+        {detail && (
+          <div className="po-document flex flex-col gap-4">
+            {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+              <div>
+                <p className="text-slate-500">Supplier</p>
+                <p className="font-medium">{detail.supplier?.name}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2">
+                  <Printer size={16} /> Print
+                </button>
+                {detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
+                  <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2">
+                    <Pencil size={16} /> Edit
+                  </button>
+                )}
+                {canManage && detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
+                  <button type="button" onClick={() => handleDeleteClick(detail._id)} className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50">
+                    <Trash2 size={16} /> Delete
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h1 className="text-xl font-semibold">Purchase Order</h1>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">PO Number</p>
+                  <p className="font-medium">{detail.poNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs">Date</p>
+                  <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-slate-500 text-xs">Supplier</p>
+                <p className="font-medium">{detail.supplier?.name}</p>
+              </div>
+            </div>
+
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                  <th className="py-2 font-semibold">Item</th>
+                  <th className="font-semibold">Warehouse</th>
+                  <th className="text-right font-semibold">Qty</th>
+                  <th className="text-right font-semibold">Unit Cost</th>
+                  <th className="text-right font-semibold">Disc %</th>
+                  <th className="text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.items.map((it, i) => (
+                  <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
+                    <td className="py-2">{it.product?.name}</td>
+                    <td>{it.warehouse?.name}</td>
+                    <td className="text-right font-figures">{it.quantity}</td>
+                    <td className="text-right font-figures">{money(it.unitCost)}</td>
+                    <td className="text-right font-figures">{it.discountRate || 0}%</td>
+                    <td className="text-right font-figures">{money(it.lineTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="border-t border-slate-200 pt-3 space-y-1">
+              <div className="flex justify-end gap-6 text-sm">
+                <span className="text-slate-600">Subtotal</span>
+                <span className="font-figures w-24 text-right">{money(detail.subTotal)}</span>
+              </div>
+              <div className="flex justify-end gap-6 text-sm">
+                <span className="text-slate-600">Tax</span>
+                <span className="font-figures w-24 text-right">{money(detail.taxTotal)}</span>
+              </div>
+              <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
+                <span>Total</span>
+                <span className="font-figures w-24 text-right">{money(detail.grandTotal)}</span>
+              </div>
+            </div>
+
+            {canManage && detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
+              <div className="print:hidden flex justify-end gap-2 pt-3 border-t border-slate-200">
+                <button type="button" onClick={() => handleConvertToBill(detail._id)} className="btn-teal inline-flex items-center gap-2">
+                  <ArrowRight size={16} /> Convert to bill
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );

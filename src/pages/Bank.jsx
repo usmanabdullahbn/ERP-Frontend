@@ -30,6 +30,9 @@ export default function Bank() {
   const [txnError, setTxnError] = useState('');
   const [txnSubmitting, setTxnSubmitting] = useState(false);
 
+  const [acctDetail, setAcctDetail] = useState(null);
+  const [txnDetail, setTxnDetail] = useState(null);
+
   const load = () => {
     api.get('/bank/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load bank accounts.'));
     api.get('/bank/transactions').then((res) => setTransactions(res.data)).catch(() => setLoadError('Could not load transactions.'));
@@ -110,7 +113,9 @@ export default function Bank() {
         <button onClick={() => setTab('transactions')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'transactions' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Transactions</button>
       </div>
 
-      {tab === 'accounts' ? <DataTable columns={acctColumns} data={accounts} /> : <DataTable columns={txnColumns} data={transactions} />}
+      {tab === 'accounts'
+        ? <DataTable columns={acctColumns} data={accounts} onRowClick={setAcctDetail} />
+        : <DataTable columns={txnColumns} data={transactions} onRowClick={setTxnDetail} />}
 
       <Modal open={acctModal} onClose={() => !acctSubmitting && setAcctModal(false)} title="New Bank Account">
         <form onSubmit={saveAccount} className="flex flex-col gap-3">
@@ -175,6 +180,91 @@ export default function Bank() {
             <input value={txnForm.reference} onChange={(e) => setTxnForm({ ...txnForm, reference: e.target.value, notes: e.target.value })} className="input" /></label>
           <button type="submit" disabled={txnSubmitting} className="mt-2 btn-teal disabled:opacity-60">{txnSubmitting ? 'Saving…' : 'Save transaction'}</button>
         </form>
+      </Modal>
+
+      <Modal open={!!acctDetail} onClose={() => setAcctDetail(null)} title={acctDetail?.name || 'Bank Account'} width="max-w-2xl">
+        {acctDetail && (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-slate-500 text-xs">Bank</p>
+                <p className="font-medium">{acctDetail.bankName || '—'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-slate-500 text-xs">Account Number</p>
+                <p className="font-medium font-figures">{acctDetail.accountNumber || '—'}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">Type</p>
+                <p className="font-medium">{acctDetail.type}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-slate-500 text-xs">Opening Balance</p>
+                <p className="font-medium font-figures">{money(acctDetail.openingBalance)}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-xs font-medium text-slate-600 mb-2">Recent transactions</p>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                    <th className="py-2 font-semibold">Date</th>
+                    <th className="font-semibold">Type</th>
+                    <th className="font-semibold">To</th>
+                    <th className="text-right font-semibold">Amount</th>
+                    <th className="font-semibold">Reference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.filter((t) => (t.bankAccount?._id || t.bankAccount) === acctDetail._id).map((t) => (
+                    <tr key={t._id} className="border-b border-slate-100">
+                      <td className="py-2">{new Date(t.date).toLocaleDateString()}</td>
+                      <td>{t.type}</td>
+                      <td>{t.toBankAccount?.name || t.contraAccount?.name || ''}</td>
+                      <td className="text-right font-figures">{money(t.amount)}</td>
+                      <td>{t.reference}</td>
+                    </tr>
+                  ))}
+                  {transactions.filter((t) => (t.bankAccount?._id || t.bankAccount) === acctDetail._id).length === 0 && (
+                    <tr><td colSpan={5} className="text-center text-slate-400 py-6">No transactions yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!txnDetail} onClose={() => setTxnDetail(null)} title="Bank Transaction">
+        {txnDetail && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-slate-500 text-xs">Date</p>
+              <p className="font-medium">{new Date(txnDetail.date).toLocaleDateString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Type</p>
+              <p className="font-medium">{txnDetail.type}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Account</p>
+              <p className="font-medium">{txnDetail.bankAccount?.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">{txnDetail.type === 'TRANSFER' ? 'To Account' : 'Contra Account'}</p>
+              <p className="font-medium">{txnDetail.toBankAccount?.name || txnDetail.contraAccount?.name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Amount</p>
+              <p className="font-medium font-figures">{money(txnDetail.amount)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Reference</p>
+              <p className="font-medium">{txnDetail.reference || '—'}</p>
+            </div>
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );

@@ -35,6 +35,9 @@ export default function Users() {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [listError, setListError] = useState('');
 
+  const [userDetail, setUserDetail] = useState(null);
+  const [roleDetail, setRoleDetail] = useState(null);
+
   const load = () => {
     api.get('/users').then((res) => setUsers(res.data)).catch(() => setLoadError('Could not load users.'));
     api.get('/roles').then((res) => setRoles(res.data)).catch(() => setLoadError('Could not load roles.'));
@@ -155,7 +158,7 @@ export default function Users() {
     {
       key: 'actions', label: '', align: 'right',
       render: (r) => (
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
           <button onClick={() => toggleActive(r)} className="text-xs text-slate-500 hover:underline">{r.isActive ? 'Deactivate' : 'Activate'}</button>
           {r._id !== currentUser?.id && (
             <button onClick={() => removeUser(r)} className="text-slate-400 hover:text-ledger-rose"><Trash2 size={14} /></button>
@@ -172,7 +175,7 @@ export default function Users() {
     {
       key: 'actions', label: '', align: 'right',
       render: (r) => !r.isSystem && (
-        <button onClick={() => removeRole(r)} className="text-slate-400 hover:text-ledger-rose"><Trash2 size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); removeRole(r); }} className="text-slate-400 hover:text-ledger-rose"><Trash2 size={14} /></button>
       )
     }
   ];
@@ -192,7 +195,9 @@ export default function Users() {
         <button onClick={() => setTab('roles')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'roles' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Roles</button>
       </div>
 
-      {tab === 'users' ? <DataTable columns={userColumns} data={users} /> : <DataTable columns={roleColumns} data={roles} />}
+      {tab === 'users'
+        ? <DataTable columns={userColumns} data={users} onRowClick={setUserDetail} />
+        : <DataTable columns={roleColumns} data={roles} onRowClick={setRoleDetail} />}
 
       <Modal open={userModal} onClose={() => !userSubmitting && setUserModal(false)} title="New User">
         <form onSubmit={saveUser} className="flex flex-col gap-3">
@@ -261,6 +266,48 @@ export default function Users() {
         onConfirm={confirmAction}
         onCancel={() => setConfirmOpen(false)}
       />
+
+      <Modal open={!!userDetail} onClose={() => setUserDetail(null)} title={userDetail?.name || 'User'}>
+        {userDetail && (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-slate-500 text-xs">Email</p>
+                <p className="font-medium">{userDetail.email}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-slate-500 text-xs">Status</p>
+                <p className="font-medium"><Badge status={userDetail.isActive ? 'ACTIVE' : 'INACTIVE'} /></p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-slate-500 text-xs">Role</p>
+                <p className="font-medium">{userDetail.role?.name}</p>
+              </div>
+            </div>
+            {userDetail.role && (
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-xs font-medium text-slate-600 mb-2">Permissions</p>
+                <p className="text-sm">{userDetail.role.permissions?.includes('*') ? 'All (system)' : userDetail.role.permissions?.join(', ') || 'None'}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!roleDetail} onClose={() => setRoleDetail(null)} title={roleDetail?.name || 'Role'}>
+        {roleDetail && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="text-slate-500 text-xs">Description</p>
+              <p className="font-medium">{roleDetail.description || '—'}</p>
+            </div>
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-xs font-medium text-slate-600 mb-2">Permissions</p>
+              <p className="text-sm">{roleDetail.permissions.includes('*') ? 'All (system)' : roleDetail.permissions.join(', ') || 'None'}</p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </PageLayout>
   );
 }

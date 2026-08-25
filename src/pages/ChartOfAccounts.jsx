@@ -20,6 +20,7 @@ export default function ChartOfAccounts() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [detail, setDetail] = useState(null);
 
   const load = () => api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
   useEffect(() => { load(); }, []);
@@ -71,7 +72,7 @@ export default function ChartOfAccounts() {
         ))}
       </div>
 
-      <DataTable columns={columns} data={filtered} />
+      <DataTable columns={columns} data={filtered} onRowClick={setDetail} />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Account">
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -92,6 +93,36 @@ export default function ChartOfAccounts() {
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" rows={2} /></label>
           <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create account'}</button>
         </form>
+      </Modal>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name || 'Account'}>
+        {detail && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-slate-500 text-xs">Code</p>
+              <p className="font-medium font-figures">{detail.code}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Type</p>
+              <p className="font-medium">{detail.type}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Sub Type</p>
+              <p className="font-medium">{detail.subType || '—'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Normal Balance</p>
+              <p className="font-medium">{detail.normalBalance}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-slate-500 text-xs">Description</p>
+              <p className="font-medium">{detail.description || '—'}</p>
+            </div>
+            {detail.isSystem && (
+              <div className="col-span-2 text-xs text-slate-500">🔒 System account — cannot be edited or deleted.</div>
+            )}
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );

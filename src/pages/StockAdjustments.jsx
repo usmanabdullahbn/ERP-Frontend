@@ -23,6 +23,7 @@ export default function StockAdjustments() {
   const [date, setDate] = useState(todayLocalISODate());
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   const load = () => api.get('/products/adjustments').then((res) => setMovements(res.data)).catch(() => setLoadError('Could not load stock adjustments.'));
 
@@ -93,7 +94,7 @@ export default function StockAdjustments() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={movements} emptyMessage="No stock adjustments recorded yet." />
+      <DataTable columns={columns} data={movements} emptyMessage="No stock adjustments recorded yet." onRowClick={setDetail} />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Stock Adjustment">
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -138,6 +139,39 @@ export default function StockAdjustments() {
           </label>
           <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Record adjustment'}</button>
         </form>
+      </Modal>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Stock Adjustment">
+        {detail && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-slate-500 text-xs">Date</p>
+              <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Direction</p>
+              <p className={`font-medium ${detail.direction === 'IN' ? 'text-ledger-teal' : 'text-ledger-rose'}`}>
+                {detail.direction === 'IN' ? 'Increase' : 'Decrease'}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Product</p>
+              <p className="font-medium">{detail.product?.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Warehouse</p>
+              <p className="font-medium">{detail.warehouse?.name}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Quantity</p>
+              <p className="font-medium font-figures">{detail.quantity}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-slate-500 text-xs">Reason</p>
+              <p className="font-medium">{detail.note || '—'}</p>
+            </div>
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );

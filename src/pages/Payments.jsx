@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -32,6 +32,9 @@ export default function Payments() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState('');
 
   const load = () => api.get('/payments').then((res) => setPayments(res.data)).catch(() => setLoadError('Could not load payments.'));
 
@@ -145,6 +148,12 @@ export default function Payments() {
     resetForm();
   };
 
+  const openDetail = async (payment) => {
+    setDetailError('');
+    const { data } = await api.get(`/payments/${payment._id}`);
+    setDetail(data);
+  };
+
   const allocatedTotal = Object.values(allocations).reduce((s, v) => s + (Number(v) || 0), 0);
 
   const save = async (e) => {
@@ -161,6 +170,7 @@ export default function Payments() {
         await api.post('/payments', payload);
       }
       closeModal();
+      setDetail(null);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save payment.');
@@ -177,10 +187,13 @@ export default function Payments() {
   const performDelete = async (id) => {
     try {
       await api.delete(`/payments/${id}`);
+      if (detail?._id === id) setDetail(null);
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not delete payment.');
+      const message = err.response?.data?.message || 'Could not delete payment.';
+      setError(message);
+      setDetailError(message);
     }
   };
 
@@ -220,7 +233,7 @@ export default function Payments() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={payments} />
+      <DataTable columns={columns} data={payments} onRowClick={openDetail} />
 
       <Modal open={modalOpen} onClose={() => !submitting && closeModal()} title={editingPayment ? 'Edit Payment' : 'Record Payment'}>
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -304,6 +317,93 @@ export default function Payments() {
         onConfirm={confirmAction}
         onCancel={() => setConfirmOpen(false)}
       />
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Payment ${detail?.paymentNumber || ''}`} width="max-w-xl">
+        {detail && (
+          <div className="payment-document flex flex-col gap-4">
+            {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+              <div>
+                <p className="text-slate-500">Supplier</p>
+                <p className="font-medium">{detail.supplier?.name}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2">
+                  <Printer size={16} /> Print
+                </button>
+                <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2">
+                  <Pencil size={16} /> Edit
+                </button>
+                {canManage && (
+                  <button type="button" onClick={() => handleDeleteClick(detail._id)} className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50">
+                    <Trash2 size={16} /> Delete
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h1 className="text-xl font-semibold">Payment</h1>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">Payment Number</p>
+                  <p className="font-medium">{detail.paymentNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs">Date</p>
+                  <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm border-t border-slate-200 pt-3">
+                <div>
+                  <p className="text-slate-500 text-xs">Supplier</p>
+                  <p className="font-medium">{detail.supplier?.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs">Paid from</p>
+                  <p className="font-medium">{detail.bankAccount?.name}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">Method</p>
+                  <p className="font-medium">{detail.method}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs">Reference</p>
+                  <p className="font-medium">{detail.reference || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            {detail.allocations?.length > 0 && (
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                    <th className="py-2 font-semibold">Applied to bill</th>
+                    <th className="text-right font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.allocations.map((alloc, i) => (
+                    <tr key={alloc.bill?._id || i} className="border-b border-slate-100">
+                      <td className="py-2">{alloc.bill?.billNumber || 'Unallocated'}</td>
+                      <td className="text-right font-figures">{money(alloc.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <div className="border-t border-slate-200 pt-3">
+              <div className="flex justify-end gap-6 text-base font-semibold">
+                <span>Amount Paid</span>
+                <span className="font-figures w-24 text-right">{money(detail.amount)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </PageLayout>
   );
 }

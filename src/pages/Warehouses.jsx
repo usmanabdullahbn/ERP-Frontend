@@ -17,6 +17,7 @@ export default function Warehouses() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [detail, setDetail] = useState(null);
 
   const load = () => api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setLoadError('Could not load warehouses.'));
   useEffect(() => { load(); }, []);
@@ -57,7 +58,7 @@ export default function Warehouses() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={warehouses} />
+      <DataTable columns={columns} data={warehouses} onRowClick={setDetail} />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Warehouse">
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -76,6 +77,29 @@ export default function Warehouses() {
           </label>
           <button type="submit" disabled={submitting} className="mt-2 btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Create warehouse'}</button>
         </form>
+      </Modal>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name || 'Warehouse'}>
+        {detail && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-slate-500 text-xs">Code</p>
+              <p className="font-medium font-figures">{detail.code}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-slate-500 text-xs">Default warehouse</p>
+              <p className="font-medium">{detail.isDefault ? 'Yes' : 'No'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-slate-500 text-xs">Name</p>
+              <p className="font-medium">{detail.name}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-slate-500 text-xs">Location</p>
+              <p className="font-medium">{detail.location || '—'}</p>
+            </div>
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );
