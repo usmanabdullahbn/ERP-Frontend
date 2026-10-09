@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate } from '../components/ui';
 
@@ -15,6 +16,7 @@ export default function Journal() {
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [detail, setDetail] = useState(null);
   const [date, setDate] = useState(todayLocalISODate());
   const [reference, setReference] = useState('');
@@ -23,6 +25,9 @@ export default function Journal() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   const load = () => api.get('/journal').then((res) => setEntries(res.data)).catch(() => setLoadError('Could not load journal entries.'));
   useEffect(() => {
@@ -43,8 +48,27 @@ export default function Journal() {
   const balanced = Math.abs(totalDebit - totalCredit) < 0.005 && totalDebit > 0;
 
   const openCreate = () => {
+    setEditingEntry(null);
     setDate(todayLocalISODate()); setReference(''); setNarration('');
     setLines([newLine(), newLine()]); setError(''); setModalOpen(true);
+  };
+
+  const openEdit = async (entry) => {
+    const { data } = await api.get(`/journal/${entry._id}`);
+    setEditingEntry(data);
+    setDate(data.date ? new Date(data.date).toISOString().slice(0, 10) : todayLocalISODate());
+    setReference(data.reference || '');
+    setNarration(data.narration || '');
+    setLines(data.lines.map((l) => ({
+      _key: ++lineKeySeq,
+      account: l.account?._id || l.account,
+      debit: l.debit || 0,
+      credit: l.credit || 0,
+      memo: l.memo || ''
+    })));
+    setError('');
+    setDetail(null);
+    setModalOpen(true);
   };
 
   const save = async (e) => {
@@ -53,20 +77,42 @@ export default function Journal() {
     setError('');
     if (!balanced) return setError('Debits must equal credits before saving.');
     setSubmitting(true);
+    const payload = {
+      date, reference, narration,
+      lines: lines
+        .filter((l) => l.account && (l.debit > 0 || l.credit > 0))
+        .map(({ _key, ...l }) => ({ ...l, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 }))
+    };
     try {
-      await api.post('/journal/manual', {
-        date, reference, narration,
-        lines: lines
-          .filter((l) => l.account && (l.debit > 0 || l.credit > 0))
-          .map(({ _key, ...l }) => ({ ...l, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 }))
-      });
+      if (editingEntry) {
+        await api.put(`/journal/${editingEntry._id}`, payload);
+      } else {
+        await api.post('/journal/manual', payload);
+      }
       setModalOpen(false);
+      setEditingEntry(null);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save journal entry.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteClick = (entry) => {
+    setActionError('');
+    setConfirmAction(() => async () => {
+      try {
+        await api.delete(`/journal/${entry._id}`);
+        setDetail(null);
+        setConfirmOpen(false);
+        load();
+      } catch (err) {
+        setActionError(err.response?.data?.message || 'Could not delete journal entry.');
+        setConfirmOpen(false);
+      }
+    });
+    setConfirmOpen(true);
   };
 
   const money = formatMoney;
@@ -81,12 +127,14 @@ export default function Journal() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
+      {actionError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{actionError}</div>}
       <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Entry #</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">Reference</th><th className="px-4 py-3 text-right">Debit</th><th className="px-4 py-3 text-right">Credit</th>
+              {isAdmin && <th className="px-4 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -98,14 +146,36 @@ export default function Journal() {
                 <td className="px-4 py-3">{e.reference}</td>
                 <td className="px-4 py-3 text-right font-figures">{money(e.totalDebit)}</td>
                 <td className="px-4 py-3 text-right font-figures">{money(e.totalCredit)}</td>
+                {isAdmin && (
+                  <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(e)}
+                        className="inline-flex items-center justify-center rounded-full border border-slate-200 p-1.5 text-slate-500 hover:text-ink-900 hover:border-slate-300"
+                        title="Edit entry"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(e)}
+                        className="inline-flex items-center justify-center rounded-full border border-slate-200 p-1.5 text-slate-500 hover:text-rose-600 hover:border-slate-300"
+                        title="Delete entry"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
-            {entries.length === 0 && <tr><td colSpan={6} className="text-center text-slate-400 py-8">No journal entries yet.</td></tr>}
+            {entries.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6} className="text-center text-slate-400 py-8">No journal entries yet.</td></tr>}
           </tbody>
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="Manual Journal Entry" width="max-w-2xl">
+      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingEntry ? `Edit ${editingEntry.entryNumber}` : 'Manual Journal Entry'} width="max-w-2xl">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-2 gap-3">
@@ -137,31 +207,63 @@ export default function Journal() {
             <span>Total Credit <span className="font-figures ml-2">{money(totalCredit)}</span></span>
           </div>
 
-          <button type="submit" className="mt-2 btn-teal disabled:opacity-50" disabled={!balanced || submitting}>{submitting ? 'Saving…' : 'Post entry'}</button>
+          <button type="submit" className="mt-2 btn-teal disabled:opacity-50" disabled={!balanced || submitting}>
+            {submitting ? 'Saving…' : editingEntry ? 'Save changes' : 'Post entry'}
+          </button>
         </form>
       </Modal>
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Journal Entry ${detail?.entryNumber || ''}`} width="max-w-2xl">
         {detail && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                <th className="py-2">Account</th><th>Memo</th><th className="text-right">Debit</th><th className="text-right">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detail.lines.map((l, i) => (
-                <tr key={i} className="border-b border-slate-100">
-                  <td className="py-2">{l.account?.code} — {l.account?.name}</td>
-                  <td className="text-slate-500">{l.memo}</td>
-                  <td className="text-right font-figures">{l.debit ? money(l.debit) : ''}</td>
-                  <td className="text-right font-figures">{l.credit ? money(l.credit) : ''}</td>
+          <div className="flex flex-col gap-4">
+            {isAdmin && (
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEdit(detail)}
+                  className="btn-ghost inline-flex items-center gap-2"
+                >
+                  <Pencil size={15} /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteClick(detail)}
+                  className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
+                >
+                  <Trash2 size={15} /> Delete
+                </button>
+              </div>
+            )}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                  <th className="py-2">Account</th><th>Memo</th><th className="text-right">Debit</th><th className="text-right">Credit</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {detail.lines.map((l, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="py-2">{l.account?.code} — {l.account?.name}</td>
+                    <td className="text-slate-500">{l.memo}</td>
+                    <td className="text-right font-figures">{l.debit ? money(l.debit) : ''}</td>
+                    <td className="text-right font-figures">{l.credit ? money(l.credit) : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Journal Entry"
+        message="Delete this journal entry? This cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmAction}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </PageLayout>
   );
 }
