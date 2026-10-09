@@ -13,35 +13,27 @@ function getTokenExpiryMs(token) {
   }
 }
 
-/*
-  Permissions always come from the server's role.permissions[] — never
-  inferred from the role's display name. A role literally named "Admin"
-  isn't automatically a super-admin; only the '*' wildcard permission is.
-*/
 function normalizeUser(userData) {
   if (!userData) return null;
 
-  if (typeof userData.role === 'string') {
-    return {
-      ...userData,
-      role: { id: null, name: userData.role, permissions: [] }
-    };
-  }
+  // Support both old single-role format and new multi-role format
+  const rawRoles = userData.roles || (userData.role ? [userData.role] : []);
+  const roles = rawRoles.map((r) => {
+    if (typeof r === 'string') return { id: null, name: r, permissions: [] };
+    return { id: r.id || r._id || null, name: r.name || '', permissions: r.permissions || [] };
+  });
 
-  if (userData.role && typeof userData.role === 'object') {
-    return {
-      ...userData,
-      role: {
-        id: userData.role.id || null,
-        name: userData.role.name || '',
-        permissions: userData.role.permissions || []
-      }
-    };
-  }
+  const mergedPermissions = [...new Set(roles.flatMap((r) => r.permissions))];
 
   return {
     ...userData,
-    role: { id: null, name: '', permissions: [] }
+    roles,
+    // backward-compat single 'role' with merged permissions so existing hasPermission calls work
+    role: {
+      id: roles[0]?.id || null,
+      name: roles.map((r) => r.name).join(', '),
+      permissions: mergedPermissions
+    }
   };
 }
 
@@ -138,8 +130,13 @@ export function AuthProvider({ children }) {
     [user]
   );
 
+  // True if any assigned role is named "Admin" or has the '*' wildcard permission
+  const isAdmin = (user?.roles || []).some(
+    (r) => r.name?.toLowerCase() === 'admin' || (r.permissions || []).includes('*')
+  );
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, hasPermission }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading, hasPermission, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

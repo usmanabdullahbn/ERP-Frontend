@@ -11,8 +11,7 @@ let lineKeySeq = 0;
 const newLine = () => ({ _key: ++lineKeySeq, account: '', debit: 0, credit: 0, memo: '' });
 
 export default function Journal() {
-  const { user, hasPermission } = useAuth();
-  const isAdmin = user?.role?.name?.toLowerCase() === 'admin' || hasPermission('*');
+  const { isAdmin } = useAuth();
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);

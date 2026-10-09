@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 
-const emptyUserForm = { name: '', email: '', password: '', role: '' };
+const emptyUserForm = { name: '', email: '', password: '', roles: [] };
 const emptyRoleForm = { name: '', description: '', permissions: [] };
 
 export default function Users() {
@@ -53,6 +53,7 @@ export default function Users() {
   const saveUser = async (e) => {
     e.preventDefault();
     if (userSubmitting) return;
+    if (!userForm.roles.length) { setUserError('Select at least one role.'); return; }
     setUserError('');
     setUserSubmitting(true);
     try {
@@ -153,7 +154,7 @@ export default function Users() {
   const userColumns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
-    { key: 'role', label: 'Role', render: (r) => r.role?.name },
+    { key: 'roles', label: 'Roles', render: (r) => (r.roles || []).map((ro) => ro.name).join(', ') || '—' },
     { key: 'isActive', label: 'Status', render: (r) => <Badge status={r.isActive ? 'ACTIVE' : 'INACTIVE'} /> },
     {
       key: 'actions', label: '', align: 'right',
@@ -226,11 +227,25 @@ export default function Users() {
               </button>
             </div>
           </label>
-          <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Role</span>
-            <select required value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="input">
-              <option value="">Select…</option>
-              {roles.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
-            </select></label>
+          <div>
+            <span className="block text-xs font-medium text-slate-600 mb-2">Roles <span className="text-ledger-rose">*</span></span>
+            <div className="grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
+              {roles.map((r) => (
+                <label key={r._id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={userForm.roles.includes(r._id)}
+                    onChange={() => setUserForm((f) => ({
+                      ...f,
+                      roles: f.roles.includes(r._id) ? f.roles.filter((id) => id !== r._id) : [...f.roles, r._id]
+                    }))}
+                  />
+                  {r.name}
+                </label>
+              ))}
+            </div>
+            {userForm.roles.length === 0 && <p className="text-xs text-ledger-rose mt-1">Select at least one role.</p>}
+          </div>
           <button type="submit" disabled={userSubmitting} className="mt-2 btn-teal disabled:opacity-60">{userSubmitting ? 'Creating…' : 'Create user'}</button>
         </form>
       </Modal>
@@ -280,14 +295,17 @@ export default function Users() {
                 <p className="font-medium"><Badge status={userDetail.isActive ? 'ACTIVE' : 'INACTIVE'} /></p>
               </div>
               <div className="col-span-2">
-                <p className="text-slate-500 text-xs">Role</p>
-                <p className="font-medium">{userDetail.role?.name}</p>
+                <p className="text-slate-500 text-xs">Roles</p>
+                <p className="font-medium">{(userDetail.roles || []).map((r) => r.name).join(', ') || '—'}</p>
               </div>
             </div>
-            {userDetail.role && (
+            {(userDetail.roles || []).length > 0 && (
               <div className="border-t border-slate-200 pt-3">
-                <p className="text-xs font-medium text-slate-600 mb-2">Permissions</p>
-                <p className="text-sm">{userDetail.role.permissions?.includes('*') ? 'All (system)' : userDetail.role.permissions?.join(', ') || 'None'}</p>
+                <p className="text-xs font-medium text-slate-600 mb-2">Combined Permissions</p>
+                {(userDetail.roles || []).some((r) => r.permissions?.includes('*'))
+                  ? <p className="text-sm">All (system)</p>
+                  : <p className="text-sm">{[...new Set((userDetail.roles || []).flatMap((r) => r.permissions || []))].join(', ') || 'None'}</p>
+                }
               </div>
             )}
           </div>

@@ -13,8 +13,7 @@ let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitPrice: 0, taxRate: 0, discountRate: 0 });
 
 export default function Invoices() {
-  const { user, hasPermission } = useAuth();
-  const isAdmin = user?.role?.name?.toLowerCase() === 'admin' || hasPermission('*');
+  const { isAdmin } = useAuth();
 
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
