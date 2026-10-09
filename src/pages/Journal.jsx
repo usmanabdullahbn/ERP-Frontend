@@ -10,8 +10,8 @@ let lineKeySeq = 0;
 const newLine = () => ({ _key: ++lineKeySeq, account: '', debit: 0, credit: 0, memo: '' });
 
 export default function Journal() {
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission('accounting.manage');
+  const { user, hasPermission } = useAuth();
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin' || hasPermission('*');
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -74,7 +74,7 @@ export default function Journal() {
   return (
     <PageLayout
       title="General Journal"
-      actions={canManage && (
+      actions={isAdmin && (
         <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
           <Plus size={15} /> Manual Entry
         </button>

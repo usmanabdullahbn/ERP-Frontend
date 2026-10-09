@@ -13,8 +13,8 @@ let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitCost: 0, taxRate: 0, discountRate: 0 });
 
 export default function Bills() {
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission('purchases.manage');
+  const { user, hasPermission } = useAuth();
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin' || hasPermission('*');
 
   const [bills, setBills] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -222,7 +222,7 @@ export default function Bills() {
               <Pencil size={16} />
             </button>
           )}
-          {canManage && r.status === 'DRAFT' && (
+          {isAdmin && r.status === 'DRAFT' && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
@@ -232,7 +232,7 @@ export default function Bills() {
               <Trash2 size={16} />
             </button>
           )}
-          {canManage && !['DRAFT', 'VOID', 'POSTING'].includes(r.status) && (
+          {isAdmin && !['DRAFT', 'VOID', 'POSTING'].includes(r.status) && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleVoidClick(r._id); }}
@@ -250,7 +250,7 @@ export default function Bills() {
   return (
     <PageLayout
       title="Purchase Bills"
-      actions={canManage && (
+      actions={isAdmin && (
         <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
           <Plus size={15} /> New Bill
         </button>
@@ -379,7 +379,7 @@ export default function Bills() {
                     <Pencil size={16} /> Edit
                   </button>
                 )}
-                {canManage && detail.status === 'DRAFT' && (
+                {isAdmin && detail.status === 'DRAFT' && (
                   <button
                     type="button"
                     onClick={() => handleDeleteClick(detail._id)}
@@ -451,7 +451,7 @@ export default function Bills() {
             </div>
 
             <div className="print:hidden">
-              {canManage && (
+              {isAdmin && (
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                   {detail.status === 'DRAFT' && <button disabled={detailBusy} onClick={() => handlePost(detail._id)} className="btn-teal disabled:opacity-60">{detailBusy ? 'Posting…' : 'Post to ledger'}</button>}
                   {detail.status !== 'VOID' && detail.status !== 'DRAFT' && detail.status !== 'POSTING' && <button onClick={() => handleVoidClick(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
