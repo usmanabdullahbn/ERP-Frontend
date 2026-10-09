@@ -100,7 +100,7 @@ export default function Login() {
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
 
-            <button
+            {/* <button
               type="button"
               onClick={handleSendTestMessage}
               disabled={sendingTest}
@@ -113,7 +113,7 @@ export default function Login() {
               <div className={`text-xs rounded-lg px-3 py-2 ${whatsappStatus.toLowerCase().includes('success') || whatsappStatus.toLowerCase().includes('sent') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                 {whatsappStatus}
               </div>
-            )}
+            )} */}
           </form>
         </div>
 
