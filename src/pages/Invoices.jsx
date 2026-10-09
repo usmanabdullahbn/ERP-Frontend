@@ -225,7 +225,7 @@ export default function Invoices() {
     { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
     { key: 'actions', label: '', align: 'right', render: (r) => (
         <div className="flex items-center justify-end gap-2">
-          {r.status === 'DRAFT' && (
+          {isAdmin && r.status !== 'POSTING' && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openEdit(r); }}
@@ -235,7 +235,7 @@ export default function Invoices() {
               <Pencil size={16} />
             </button>
           )}
-          {isAdmin && r.status === 'DRAFT' && (
+          {isAdmin && r.status !== 'POSTING' && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleDeleteClick(r._id); }}
@@ -393,7 +393,7 @@ export default function Invoices() {
                 >
                   <Printer size={16} /> Print
                 </button>
-                {detail.status === 'DRAFT' && (
+                {isAdmin && detail.status !== 'POSTING' && (
                   <button
                     type="button"
                     onClick={() => openEdit(detail)}
@@ -402,7 +402,7 @@ export default function Invoices() {
                     <Pencil size={16} /> Edit
                   </button>
                 )}
-                {isAdmin && detail.status === 'DRAFT' && (
+                {isAdmin && detail.status !== 'POSTING' && (
                   <button
                     type="button"
                     onClick={() => handleDeleteClick(detail._id)}
