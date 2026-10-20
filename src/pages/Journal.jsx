@@ -1,22 +1,29 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import FilterBar, { matchesSearch, toLocalISODate } from '../components/FilterBar';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate } from '../components/ui';
+
+const SOURCE_TYPES = ['INVOICE', 'RECEIPT', 'BILL', 'PAYMENT', 'BANK_TRANSFER', 'MANUAL', 'OPENING_BALANCE'];
 
 let lineKeySeq = 0;
 const newLine = () => ({ _key: ++lineKeySeq, account: '', debit: 0, credit: 0, memo: '' });
 
 export default function Journal() {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
-  const [detail, setDetail] = useState(null);
+  // Set when editing was started from the entry's own page — save returns there.
+  const [returnToEntryId, setReturnToEntryId] = useState(null);
   const [date, setDate] = useState(todayLocalISODate());
   const [reference, setReference] = useState('');
   const [narration, setNarration] = useState('');
@@ -27,12 +34,27 @@ export default function Journal() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   const load = () => api.get('/journal').then((res) => setEntries(res.data)).catch(() => setLoadError('Could not load journal entries.'));
   useEffect(() => {
     load();
     api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
   }, []);
+
+  // /journal?edit=<id> comes from the Edit button on the entry page.
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (!editParam) return;
+    setSearchParams({}, { replace: true });
+    setReturnToEntryId(editParam);
+    openEdit({ _id: editParam }).catch(() => setLoadError('Could not load that journal entry for editing.'));
+  }, [editParam]);
 
   const updateLine = (i, patch) => {
     const next = [...lines];
@@ -66,8 +88,13 @@ export default function Journal() {
       memo: l.memo || ''
     })));
     setError('');
-    setDetail(null);
     setModalOpen(true);
+  };
+
+  const closeForm = () => {
+    if (submitting) return;
+    setModalOpen(false);
+    if (editingEntry && returnToEntryId === editingEntry._id) navigate(`/journal/${editingEntry._id}`);
   };
 
   const save = async (e) => {
@@ -90,6 +117,10 @@ export default function Journal() {
       }
       setModalOpen(false);
       setEditingEntry(null);
+      if (editingEntry && returnToEntryId === editingEntry._id) {
+        navigate(`/journal/${editingEntry._id}`);
+        return;
+      }
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save journal entry.');
@@ -103,7 +134,6 @@ export default function Journal() {
     setConfirmAction(() => async () => {
       try {
         await api.delete(`/journal/${entry._id}`);
-        setDetail(null);
         setConfirmOpen(false);
         load();
       } catch (err) {
@@ -116,6 +146,19 @@ export default function Journal() {
 
   const money = formatMoney;
 
+  const filteredEntries = entries.filter((e) => {
+    const day = toLocalISODate(e.date);
+    return (!sourceFilter || e.sourceType === sourceFilter) &&
+      (!accountFilter || (e.lines || []).some((l) => (l.account?._id || l.account) === accountFilter)) &&
+      (!statusFilter || (statusFilter === 'reversed' ? e.isReversed : !e.isReversed)) &&
+      (!fromDate || day >= fromDate) &&
+      (!toDate || day <= toDate) &&
+      matchesSearch(search, e.entryNumber, e.reference, e.narration, e.totalDebit,
+        ...(e.lines || []).flatMap((l) => [l.memo, l.account?.code, l.account?.name]));
+  });
+  const hasFilters = !!(search || sourceFilter || accountFilter || statusFilter || fromDate || toDate);
+  const clearFilters = () => { setSearch(''); setSourceFilter(''); setAccountFilter(''); setStatusFilter(''); setFromDate(''); setToDate(''); };
+
   return (
     <PageLayout
       title="General Journal"
@@ -127,6 +170,24 @@ export default function Journal() {
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       {actionError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{actionError}</div>}
+      <FilterBar search={search} onSearch={setSearch} placeholder="Search entry #, reference, narration, account…" showClear={hasFilters} onClear={clearFilters}>
+        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="input w-auto">
+          <option value="">All sources</option>
+          {SOURCE_TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+        </select>
+        <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} className="input w-auto max-w-[220px]">
+          <option value="">All accounts</option>
+          {accounts.map((a) => <option key={a._id} value={a._id}>{a.code} — {a.name}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input w-auto">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="reversed">Reversed</option>
+        </select>
+        <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input w-auto" title="From date" />
+        <span className="text-xs text-slate-400">to</span>
+        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input w-auto" title="To date" />
+      </FilterBar>
       <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -137,8 +198,8 @@ export default function Journal() {
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
-              <tr key={e._id} onClick={() => setDetail(e)} className="border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50">
+            {filteredEntries.map((e) => (
+              <tr key={e._id} onClick={() => navigate(`/journal/${e._id}`)} className="border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50">
                 <td className="px-4 py-3">{e.entryNumber}{e.isReversed && <span className="ml-1 text-xs text-ledger-rose">(reversed)</span>}</td>
                 <td className="px-4 py-3">{new Date(e.date).toLocaleDateString()}</td>
                 <td className="px-4 py-3">{e.sourceType}</td>
@@ -169,12 +230,12 @@ export default function Journal() {
                 )}
               </tr>
             ))}
-            {entries.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6} className="text-center text-slate-400 py-8">No journal entries yet.</td></tr>}
+            {filteredEntries.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6} className="text-center text-slate-400 py-8">{hasFilters ? 'No journal entries match your filters.' : 'No journal entries yet.'}</td></tr>}
           </tbody>
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingEntry ? `Edit ${editingEntry.entryNumber}` : 'Manual Journal Entry'} width="max-w-2xl">
+      <Modal open={modalOpen} onClose={closeForm} title={editingEntry ? `Edit ${editingEntry.entryNumber}` : 'Manual Journal Entry'} width="max-w-2xl">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-2 gap-3">
@@ -210,48 +271,6 @@ export default function Journal() {
             {submitting ? 'Saving…' : editingEntry ? 'Save changes' : 'Post entry'}
           </button>
         </form>
-      </Modal>
-
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Journal Entry ${detail?.entryNumber || ''}`} width="max-w-2xl">
-        {detail && (
-          <div className="flex flex-col gap-4">
-            {isAdmin && (
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => openEdit(detail)}
-                  className="btn-ghost inline-flex items-center gap-2"
-                >
-                  <Pencil size={15} /> Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteClick(detail)}
-                  className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
-                >
-                  <Trash2 size={15} /> Delete
-                </button>
-              </div>
-            )}
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                  <th className="py-2">Account</th><th>Memo</th><th className="text-right">Debit</th><th className="text-right">Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.lines.map((l, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="py-2">{l.account?.code} — {l.account?.name}</td>
-                    <td className="text-slate-500">{l.memo}</td>
-                    <td className="text-right font-figures">{l.debit ? money(l.debit) : ''}</td>
-                    <td className="text-right font-figures">{l.credit ? money(l.credit) : ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </Modal>
 
       <ConfirmModal

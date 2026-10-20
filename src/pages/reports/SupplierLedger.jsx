@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
@@ -11,6 +12,7 @@ const exportColumns = [
   { key: 'date', label: 'Date', date: true },
   { key: 'type', label: 'Type' },
   { key: 'ref', label: 'Ref' },
+  { key: 'jvNumber', label: 'JV #' },
   { key: 'debit', label: 'Debit', align: 'right', money: true },
   { key: 'credit', label: 'Credit', align: 'right', money: true },
   { key: 'balance', label: 'Balance', align: 'right', money: true }
@@ -57,7 +59,7 @@ export default function SupplierLedger() {
     (rows || []).forEach((ledger) => {
       const supplier = ledger.supplier?.name || '—';
       if (showBf) out.push({ supplier, date: '', type: 'Balance b/f', ref: '', debit: '', credit: '', balance: ledger.openingBalance || 0 });
-      ledger.entries.forEach((e) => out.push({ supplier, date: e.date, type: e.type, ref: e.ref, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
+      ledger.entries.forEach((e) => out.push({ supplier, date: e.date, type: e.type, ref: e.ref, jvNumber: e.jvNumber || '', debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
       out.push({ supplier, date: '', type: 'Closing balance', ref: '', debit: '', credit: '', balance: ledger.closingBalance });
     });
     return out;
@@ -124,6 +126,7 @@ export default function SupplierLedger() {
                       <th className="px-4 py-3">Date</th>
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Ref</th>
+                      <th className="px-4 py-3">JV #</th>
                       <th className="px-4 py-3 text-right">Debit</th>
                       <th className="px-4 py-3 text-right">Credit</th>
                       <th className="px-4 py-3 text-right">Balance</th>
@@ -135,13 +138,14 @@ export default function SupplierLedger() {
                         <td className="px-4 py-2">{r._bf ? '—' : new Date(r.date).toLocaleDateString()}</td>
                         <td className="px-4 py-2">{r.type}</td>
                         <td className="px-4 py-2">{r.ref}</td>
+                        <td className="px-4 py-2">{r._bf ? '' : <JvLink id={r.jvId} number={r.jvNumber} />}</td>
                         <td className="px-4 py-2 text-right font-figures">{r._bf ? '' : (r.debit ? money(r.debit) : '')}</td>
                         <td className="px-4 py-2 text-right font-figures">{r._bf ? '' : (r.credit ? money(r.credit) : '')}</td>
                         <td className="px-4 py-2 text-right font-figures font-semibold">{money(r.balance)}</td>
                       </tr>
                     ))}
                     {entryRows.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">No entries in this period.</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">No entries in this period.</td></tr>
                     )}
                   </tbody>
                 </table>

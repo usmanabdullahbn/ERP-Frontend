@@ -4,6 +4,7 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import FilterBar, { matchesSearch, toLocalISODate } from '../components/FilterBar';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate } from '../components/ui';
 
@@ -32,6 +33,14 @@ export default function Bank() {
 
   const [acctDetail, setAcctDetail] = useState(null);
   const [txnDetail, setTxnDetail] = useState(null);
+
+  const [acctSearch, setAcctSearch] = useState('');
+  const [acctTypeFilter, setAcctTypeFilter] = useState('');
+  const [txnSearch, setTxnSearch] = useState('');
+  const [txnAccountFilter, setTxnAccountFilter] = useState('');
+  const [txnTypeFilter, setTxnTypeFilter] = useState('');
+  const [txnFrom, setTxnFrom] = useState('');
+  const [txnTo, setTxnTo] = useState('');
 
   const load = () => {
     api.get('/bank/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load bank accounts.'));
@@ -81,6 +90,26 @@ export default function Bank() {
 
   const money = formatMoney;
 
+  const filteredAccounts = accounts.filter((a) =>
+    (!acctTypeFilter || a.type === acctTypeFilter) &&
+    matchesSearch(acctSearch, a.name, a.bankName, a.accountNumber)
+  );
+  const acctHasFilters = !!(acctSearch || acctTypeFilter);
+  const clearAcctFilters = () => { setAcctSearch(''); setAcctTypeFilter(''); };
+
+  const filteredTransactions = transactions.filter((t) => {
+    const day = toLocalISODate(t.date);
+    const accountId = t.bankAccount?._id || t.bankAccount;
+    const toId = t.toBankAccount?._id || t.toBankAccount;
+    return (!txnAccountFilter || accountId === txnAccountFilter || toId === txnAccountFilter) &&
+      (!txnTypeFilter || t.type === txnTypeFilter) &&
+      (!txnFrom || day >= txnFrom) &&
+      (!txnTo || day <= txnTo) &&
+      matchesSearch(txnSearch, t.reference, t.notes, t.bankAccount?.name, t.toBankAccount?.name, t.contraAccount?.name, t.amount);
+  });
+  const txnHasFilters = !!(txnSearch || txnAccountFilter || txnTypeFilter || txnFrom || txnTo);
+  const clearTxnFilters = () => { setTxnSearch(''); setTxnAccountFilter(''); setTxnTypeFilter(''); setTxnFrom(''); setTxnTo(''); };
+
   const acctColumns = [
     { key: 'name', label: 'Name' },
     { key: 'bankName', label: 'Bank' },
@@ -113,9 +142,37 @@ export default function Bank() {
         <button onClick={() => setTab('transactions')} className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'transactions' ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Transactions</button>
       </div>
 
-      {tab === 'accounts'
-        ? <DataTable columns={acctColumns} data={accounts} onRowClick={setAcctDetail} />
-        : <DataTable columns={txnColumns} data={transactions} onRowClick={setTxnDetail} />}
+      {tab === 'accounts' ? (
+        <>
+          <FilterBar search={acctSearch} onSearch={setAcctSearch} placeholder="Search name, bank, account no…" showClear={acctHasFilters} onClear={clearAcctFilters}>
+            <select value={acctTypeFilter} onChange={(e) => setAcctTypeFilter(e.target.value)} className="input w-auto">
+              <option value="">All types</option>
+              <option value="BANK">Bank</option>
+              <option value="CASH">Cash</option>
+            </select>
+          </FilterBar>
+          <DataTable columns={acctColumns} data={filteredAccounts} onRowClick={setAcctDetail} emptyMessage={acctHasFilters ? 'No accounts match your filters.' : 'No records yet.'} />
+        </>
+      ) : (
+        <>
+          <FilterBar search={txnSearch} onSearch={setTxnSearch} placeholder="Search reference, account, amount…" showClear={txnHasFilters} onClear={clearTxnFilters}>
+            <select value={txnAccountFilter} onChange={(e) => setTxnAccountFilter(e.target.value)} className="input w-auto">
+              <option value="">All accounts</option>
+              {accounts.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
+            </select>
+            <select value={txnTypeFilter} onChange={(e) => setTxnTypeFilter(e.target.value)} className="input w-auto">
+              <option value="">All types</option>
+              <option value="DEPOSIT">Deposit</option>
+              <option value="WITHDRAWAL">Withdrawal</option>
+              <option value="TRANSFER">Transfer</option>
+            </select>
+            <input type="date" value={txnFrom} onChange={(e) => setTxnFrom(e.target.value)} className="input w-auto" title="From date" />
+            <span className="text-xs text-slate-400">to</span>
+            <input type="date" value={txnTo} onChange={(e) => setTxnTo(e.target.value)} className="input w-auto" title="To date" />
+          </FilterBar>
+          <DataTable columns={txnColumns} data={filteredTransactions} onRowClick={setTxnDetail} emptyMessage={txnHasFilters ? 'No transactions match your filters.' : 'No records yet.'} />
+        </>
+      )}
 
       <Modal open={acctModal} onClose={() => !acctSubmitting && setAcctModal(false)} title="New Bank Account">
         <form onSubmit={saveAccount} className="flex flex-col gap-3">

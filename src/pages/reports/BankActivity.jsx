@@ -4,6 +4,7 @@ import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
@@ -12,6 +13,7 @@ const columns = [
   { key: 'bankAccount', label: 'Bank Account' },
   { key: 'type', label: 'Type' },
   { key: 'reference', label: 'Reference' },
+  { key: 'jvNumber', label: 'JV #', render: (r) => <JvLink id={r.jvId} number={r.jvNumber} /> },
   { key: 'description', label: 'Description' },
   { key: 'contraDetails', label: 'Contra / Transfer' },
   { key: 'amount', label: 'Amount', align: 'right', mono: true, render: (r) => formatMoney(r.amount) }
@@ -22,6 +24,7 @@ const exportColumns = [
   { key: 'bankAccount', label: 'Bank Account' },
   { key: 'type', label: 'Type' },
   { key: 'reference', label: 'Reference' },
+  { key: 'jvNumber', label: 'JV #' },
   { key: 'description', label: 'Description' },
   { key: 'contraDetails', label: 'Contra / Transfer' },
   { key: 'amount', label: 'Amount', align: 'right', money: true }

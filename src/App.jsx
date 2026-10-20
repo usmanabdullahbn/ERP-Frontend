@@ -21,6 +21,7 @@ import StockAdjustments from './pages/StockAdjustments';
 import Bank from './pages/Bank';
 import ChartOfAccounts from './pages/ChartOfAccounts';
 import Journal from './pages/Journal';
+import JournalEntryView from './pages/JournalEntryView';
 import Users from './pages/Users';
 
 import TrialBalance from './pages/reports/TrialBalance';
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/bank" element={<ProtectedRoute permission={['banking.view', 'banking.manage']}><Bank /></ProtectedRoute>} />
         <Route path="/chart-of-accounts" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><ChartOfAccounts /></ProtectedRoute>} />
         <Route path="/journal" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><Journal /></ProtectedRoute>} />
+        <Route path="/journal/:id" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryView /></ProtectedRoute>} />
 
         <Route path="/reports/trial-balance" element={<ProtectedRoute permission="reports.view"><TrialBalance /></ProtectedRoute>} />
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />

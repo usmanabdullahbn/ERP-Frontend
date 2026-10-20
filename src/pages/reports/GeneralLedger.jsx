@@ -3,12 +3,14 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
 const exportColumns = [
   { key: 'account', label: 'Account' },
   { key: 'date', label: 'Date', date: true },
+  { key: 'jvNumber', label: 'JV #' },
   { key: 'reference', label: 'Reference' },
   { key: 'description', label: 'Description' },
   { key: 'debit', label: 'Debit', align: 'right', money: true },
@@ -54,7 +56,7 @@ export default function GeneralLedger() {
     (data || []).forEach((ledger) => {
       const account = `${ledger.account.code} - ${ledger.account.name}`;
       if (showBf) out.push({ account, date: '', reference: '', description: 'Balance b/f', debit: '', credit: '', balance: ledger.openingBalance || 0 });
-      ledger.entries.forEach((e) => out.push({ account, date: e.date, reference: e.reference, description: e.description, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
+      ledger.entries.forEach((e) => out.push({ account, date: e.date, jvNumber: e.jvNumber || '', reference: e.reference, description: e.description, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
       out.push({ account, date: '', reference: '', description: 'Closing balance', debit: money(ledger.totalDebit), credit: money(ledger.totalCredit), balance: ledger.closingBalance });
     });
     return out;
@@ -104,6 +106,7 @@ export default function GeneralLedger() {
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
                     <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">JV #</th>
                     <th className="px-4 py-3">Reference</th>
                     <th className="px-4 py-3">Description</th>
                     <th className="px-4 py-3 text-right">Debit</th>
@@ -115,6 +118,7 @@ export default function GeneralLedger() {
                   {showBf && (
                     <tr className="border-b border-slate-100 bg-slate-50">
                       <td className="px-4 py-2">—</td>
+                      <td className="px-4 py-2"></td>
                       <td className="px-4 py-2 font-mono text-xs"></td>
                       <td className="px-4 py-2 text-slate-600 font-medium">Balance b/f</td>
                       <td className="px-4 py-2 text-right font-figures"></td>
@@ -125,6 +129,7 @@ export default function GeneralLedger() {
                   {ledger.entries.map((entry, i) => (
                     <tr key={i} className="border-b border-slate-100">
                       <td className="px-4 py-2">{entry.date ? new Date(entry.date).toLocaleDateString() : '—'}</td>
+                      <td className="px-4 py-2"><JvLink id={entry.jvId} number={entry.jvNumber} /></td>
                       <td className="px-4 py-2 font-mono text-xs">{entry.reference}</td>
                       <td className="px-4 py-2 text-slate-600">{entry.description}</td>
                       <td className="px-4 py-2 text-right font-figures">{entry.debit ? money(entry.debit) : ''}</td>
@@ -135,7 +140,7 @@ export default function GeneralLedger() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-ink-800 font-semibold">
-                    <td className="px-4 py-3" colSpan={3}>Total</td>
+                    <td className="px-4 py-3" colSpan={4}>Total</td>
                     <td className="px-4 py-3 text-right font-figures">{money(ledger.totalDebit)}</td>
                     <td className="px-4 py-3 text-right font-figures">{money(ledger.totalCredit)}</td>
                     <td className="px-4 py-3 text-right font-figures">{money(ledger.closingBalance)}</td>

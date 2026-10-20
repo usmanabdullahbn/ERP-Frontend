@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
@@ -10,6 +11,7 @@ const columns = [
   { key: 'date', label: 'Date', render: (r) => r.date ? new Date(r.date).toLocaleDateString() : '—' },
   { key: 'type', label: 'Type' },
   { key: 'reference', label: 'Reference' },
+  { key: 'jvNumber', label: 'JV #', render: (r) => <JvLink id={r.jvId} number={r.jvNumber} /> },
   { key: 'supplier', label: 'Supplier' },
   { key: 'description', label: 'Description' },
   { key: 'status', label: 'Status' },
@@ -21,6 +23,7 @@ const exportColumns = [
   { key: 'date', label: 'Date', date: true },
   { key: 'type', label: 'Type' },
   { key: 'reference', label: 'Reference' },
+  { key: 'jvNumber', label: 'JV #' },
   { key: 'supplier', label: 'Supplier' },
   { key: 'description', label: 'Description' },
   { key: 'status', label: 'Status' },

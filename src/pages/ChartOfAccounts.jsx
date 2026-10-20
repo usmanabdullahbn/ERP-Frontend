@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import FilterBar, { matchesSearch } from '../components/FilterBar';
 import { useAuth } from '../context/AuthContext';
 
 const TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
@@ -20,6 +21,9 @@ export default function ChartOfAccounts() {
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterSubType, setFilterSubType] = useState('');
+  const [filterSystem, setFilterSystem] = useState('');
   const [detail, setDetail] = useState(null);
 
   const load = () => api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
@@ -44,7 +48,21 @@ export default function ChartOfAccounts() {
     }
   };
 
-  const filtered = filterType ? accounts.filter((a) => a.type === filterType) : accounts;
+  const subTypes = useMemo(
+    () => [...new Set(accounts.filter((a) => !filterType || a.type === filterType).map((a) => a.subType).filter(Boolean))].sort(),
+    [accounts, filterType]
+  );
+
+  const filtered = accounts.filter((a) =>
+    (!filterType || a.type === filterType) &&
+    (!filterSubType || a.subType === filterSubType) &&
+    (!filterSystem || (filterSystem === 'system' ? a.isSystem : !a.isSystem)) &&
+    matchesSearch(search, a.code, a.name, a.subType, a.description)
+  );
+
+  const hasFilters = !!(search || filterSubType || filterSystem);
+  const clearFilters = () => { setSearch(''); setFilterSubType(''); setFilterSystem(''); };
+  const selectType = (t) => { setFilterType(t); setFilterSubType(''); };
 
   const columns = [
     { key: 'code', label: 'Code' },
@@ -66,13 +84,25 @@ export default function ChartOfAccounts() {
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setFilterType('')} className={`px-3 py-1.5 rounded-lg text-xs ${!filterType ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>All</button>
+        <button onClick={() => selectType('')} className={`px-3 py-1.5 rounded-lg text-xs ${!filterType ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>All</button>
         {TYPES.map((t) => (
-          <button key={t} onClick={() => setFilterType(t)} className={`px-3 py-1.5 rounded-lg text-xs ${filterType === t ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{t}</button>
+          <button key={t} onClick={() => selectType(t)} className={`px-3 py-1.5 rounded-lg text-xs ${filterType === t ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{t}</button>
         ))}
       </div>
 
-      <DataTable columns={columns} data={filtered} onRowClick={setDetail} />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Search code, name, sub type…" showClear={hasFilters} onClear={clearFilters}>
+        <select value={filterSubType} onChange={(e) => setFilterSubType(e.target.value)} className="input w-auto">
+          <option value="">All sub types</option>
+          {subTypes.map((st) => <option key={st} value={st}>{st}</option>)}
+        </select>
+        <select value={filterSystem} onChange={(e) => setFilterSystem(e.target.value)} className="input w-auto">
+          <option value="">System &amp; custom</option>
+          <option value="system">System only</option>
+          <option value="custom">Custom only</option>
+        </select>
+      </FilterBar>
+
+      <DataTable columns={columns} data={filtered} onRowClick={setDetail} emptyMessage={hasFilters || filterType ? 'No accounts match your filters.' : 'No records yet.'} />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Account">
         <form onSubmit={save} className="flex flex-col gap-3">
