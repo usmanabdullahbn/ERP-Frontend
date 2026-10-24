@@ -28,6 +28,7 @@ import TrialBalance from './pages/reports/TrialBalance';
 import ProfitAndLoss from './pages/reports/ProfitAndLoss';
 import BalanceSheet from './pages/reports/BalanceSheet';
 import StockSummary from './pages/reports/StockSummary';
+import ItemActivity from './pages/reports/ItemActivity';
 import PendingOrders from './pages/reports/PendingOrders';
 import PendingPurchaseOrders from './pages/reports/PendingPurchaseOrders';
 import SalesJournal from './pages/reports/SalesJournal';
@@ -62,11 +63,13 @@ export default function App() {
         <Route path="/customers" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Customers /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices /></ProtectedRoute>} />
+        <Route path="/invoices/:id" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices /></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Receipts /></ProtectedRoute>} />
 
         <Route path="/suppliers" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Suppliers /></ProtectedRoute>} />
         <Route path="/purchase-orders" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders /></ProtectedRoute>} />
         <Route path="/bills" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills /></ProtectedRoute>} />
+        <Route path="/bills/:id" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills /></ProtectedRoute>} />
         <Route path="/payments" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Payments /></ProtectedRoute>} />
 
         <Route path="/products" element={<ProtectedRoute permission={['inventory.view', 'inventory.manage']}><Products /></ProtectedRoute>} />
@@ -83,6 +86,7 @@ export default function App() {
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
         <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
         <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
+        <Route path="/reports/item-activity" element={<ProtectedRoute permission="reports.view"><ItemActivity /></ProtectedRoute>} />
         <Route path="/reports/pending-orders" element={<ProtectedRoute permission="reports.view"><PendingOrders /></ProtectedRoute>} />
         <Route path="/reports/pending-purchase-orders" element={<ProtectedRoute permission="reports.view"><PendingPurchaseOrders /></ProtectedRoute>} />
         <Route path="/reports/sales-journal" element={<ProtectedRoute permission="reports.view"><SalesJournal /></ProtectedRoute>} />

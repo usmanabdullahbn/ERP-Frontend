@@ -105,7 +105,8 @@ export default function PurchaseOrders() {
       if (editingPO) await api.put(`/purchase-orders/${editingPO._id}`, payload);
       else await api.post('/purchase-orders', payload);
       setModalOpen(false);
-      setDetail(null);
+      // Stay on the record that was edited, showing its saved state.
+      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save purchase order.');

@@ -27,6 +27,7 @@ const exportColumns = [
 export default function StockSummary() {
   const [data, setData] = useState(null);
   const [asOf, setAsOf] = useState(todayLocalISODate());
+  const [excludeZero, setExcludeZero] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -41,8 +42,9 @@ export default function StockSummary() {
       .finally(() => setLoading(false));
   };
 
+  const visibleRows = data ? (excludeZero ? data.rows.filter((r) => r.totalQuantity !== 0) : data.rows) : [];
   const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}`;
-  const exportRows = () => data.rows.map((r) => ({ ...r, status: r.belowReorder ? 'Reorder needed' : 'OK' }));
+  const exportRows = () => visibleRows.map((r) => ({ ...r, status: r.belowReorder ? 'Reorder needed' : 'OK' }));
   const exportTotals = () => ['', '', 'Total', formatMoney(data.totalStockValue), '', ''];
   const exportPdf = () => downloadReportPdf({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
   const exportExcel = () => downloadReportExcel({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
@@ -55,8 +57,12 @@ export default function StockSummary() {
       <div className="flex items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
+        <label className="flex items-center gap-2 pb-2 text-sm text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={excludeZero} onChange={(e) => setExcludeZero(e.target.checked)} />
+          Exclude zero
+        </label>
         <button onClick={run} disabled={loading} className="btn-primary disabled:opacity-60">{loading ? 'Running…' : 'Run Report'}</button>
-        {asOf && <span className="text-xs text-slate-400 pb-2">Showing stock as it stood on {asOf}. Stock value still uses current cost price.</span>}
+        {asOf && <span className="text-xs text-slate-400 pb-2">Showing stock as it stood on {asOf}. Stock value uses average purchase cost (after discount).</span>}
       </div>
 
       {!data && !loading && (
@@ -69,7 +75,7 @@ export default function StockSummary() {
             <span className="font-display text-ink-800">Total Stock Value</span>
             <span className="font-figures text-xl font-semibold">{money(data.totalStockValue)}</span>
           </div>
-          <DataTable columns={columns} data={data.rows} />
+          <DataTable columns={columns} data={visibleRows} />
         </>
       )}
     </PageLayout>

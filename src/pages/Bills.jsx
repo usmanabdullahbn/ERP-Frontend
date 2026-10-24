@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, Printer, Ban } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Plus, Trash2, Pencil, Printer, Ban, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -12,8 +13,14 @@ import { formatMoney, todayLocalISODate } from '../components/ui';
 let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitCost: 0, taxRate: 0, discountRate: 0 });
 
+/*
+  /bills lists bills; /bills/:id is the bill's own page. Both share this
+  component so the edit form, post, void and delete logic live in one place.
+*/
 export default function Bills() {
   const { isAdmin } = useAuth();
+  const { id } = useParams();
+  const navigate = useNavigate();
 
   const [bills, setBills] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -44,6 +51,12 @@ export default function Bills() {
     api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
     api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setLoadError('Could not load warehouses.'));
   }, []);
+
+  useEffect(() => {
+    setDetail(null);
+    setDetailError('');
+    if (id) openDetail({ _id: id }).catch(() => setDetailError('Could not load this bill — it may have been deleted.'));
+  }, [id]);
 
   const defaultWarehouseId = warehouses.find((w) => w.isDefault)?._id || warehouses[0]?._id || '';
 
@@ -112,7 +125,8 @@ export default function Bills() {
       }
       setEditingBill(null);
       setModalOpen(false);
-      setDetail(null);
+      // Stay on the record that was edited, showing its saved state.
+      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save bill.');
@@ -152,14 +166,15 @@ export default function Bills() {
     setConfirmOpen(true);
   };
 
-  const performDelete = async (id) => {
+  const performDelete = async (billId) => {
     try {
-      await api.delete(`/bills/${id}`);
-      if (detail?._id === id) setDetail(null);
-      load();
+      await api.delete(`/bills/${billId}`);
       setConfirmOpen(false);
+      if (id) return navigate('/bills', { replace: true });
+      load();
     } catch (err) {
-      setDetailError(err.response?.data?.message || 'Could not delete bill.');
+      const message = err.response?.data?.message || 'Could not delete bill.';
+      if (id) setDetailError(message); else setLoadError(message);
       setConfirmOpen(false);
     }
   };
@@ -178,7 +193,8 @@ export default function Bills() {
       load();
       setConfirmOpen(false);
     } catch (err) {
-      setDetailError(err.response?.data?.message || 'Could not void bill.');
+      const message = err.response?.data?.message || 'Could not void bill.';
+      if (id) setDetailError(message); else setLoadError(message);
       setConfirmOpen(false);
     }
   };
@@ -246,17 +262,125 @@ export default function Bills() {
     }
   ];
 
-  return (
-    <PageLayout
-      title="Purchase Bills"
-      actions={isAdmin && (
-        <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
-          <Plus size={15} /> New Bill
+  const viewActions = detail && (
+    <>
+      <button type="button" onClick={handlePrint} className="btn-ghost inline-flex items-center gap-2 print:hidden">
+        <Printer size={16} /> Print
+      </button>
+      {isAdmin && detail.status !== 'POSTING' && (
+        <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2 print:hidden">
+          <Pencil size={16} /> Edit
         </button>
       )}
+      {isAdmin && detail.status !== 'POSTING' && (
+        <button
+          type="button"
+          onClick={() => handleDeleteClick(detail._id)}
+          className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50 print:hidden"
+        >
+          <Trash2 size={16} /> Delete
+        </button>
+      )}
+    </>
+  );
+
+  const listActions = isAdmin && (
+    <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
+      <Plus size={15} /> New Bill
+    </button>
+  );
+
+  return (
+    <PageLayout
+      title={id ? `Bill ${detail?.billNumber || ''}` : 'Purchase Bills'}
+      actions={id ? viewActions : listActions}
     >
-      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={bills} onRowClick={openDetail} />
+      {!id && loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
+      {!id && <DataTable columns={columns} data={bills} onRowClick={(r) => navigate(`/bills/${r._id}`)} />}
+
+      {id && (
+        <div className="print-page">
+          <Link to="/bills" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-ink-900 mb-4 print:hidden">
+            <ArrowLeft size={15} /> Back to Purchase Bills
+          </Link>
+          {detailError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
+          {!detail && !detailError && <div className="text-sm text-slate-400 py-12 text-center">Loading…</div>}
+          {detail && (
+            <div className="bill-document bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4 max-w-4xl">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <h1 className="text-xl font-semibold">Purchase Bill</h1>
+                  <Badge status={detail.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500 text-xs">Bill Number</p>
+                    <p className="font-medium">{detail.billNumber}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-500 text-xs">Date</p>
+                    <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 pt-3">
+                  <p className="text-slate-500 text-xs">Supplier</p>
+                  <p className="font-medium">{detail.supplier?.name}</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                      <th className="py-2 font-semibold">Item</th>
+                      <th className="font-semibold">Warehouse</th>
+                      <th className="text-right font-semibold">Qty</th>
+                      <th className="text-right font-semibold">Cost</th>
+                      <th className="text-right font-semibold">Disc %</th>
+                      <th className="text-right font-semibold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.items.map((it, i) => (
+                      <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
+                        <td className="py-2">{it.product?.name}</td>
+                        <td>{it.warehouse?.name}</td>
+                        <td className="text-right font-figures">{it.quantity}</td>
+                        <td className="text-right font-figures">{money(it.unitCost)}</td>
+                        <td className="text-right font-figures">{it.discountRate || 0}%</td>
+                        <td className="text-right font-figures">{money(it.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border-t border-slate-200 pt-3 space-y-1">
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-slate-600">Subtotal</span>
+                  <span className="font-figures w-28 text-right">{money(detail.subTotal)}</span>
+                </div>
+                <div className="flex justify-end gap-6 text-sm">
+                  <span className="text-slate-600">Tax</span>
+                  <span className="font-figures w-28 text-right">{money(detail.taxTotal)}</span>
+                </div>
+                <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
+                  <span>Total</span>
+                  <span className="font-figures w-28 text-right">{money(detail.grandTotal)}</span>
+                </div>
+              </div>
+
+              {isAdmin && !['VOID', 'POSTING'].includes(detail.status) && (
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 print:hidden">
+                  {detail.status === 'DRAFT' && <button disabled={detailBusy} onClick={() => handlePost(detail._id)} className="btn-teal disabled:opacity-60">{detailBusy ? 'Posting…' : 'Post to ledger'}</button>}
+                  {!['VOID', 'DRAFT', 'POSTING'].includes(detail.status) && <button onClick={() => handleVoidClick(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingBill ? 'Edit Bill' : 'New Bill'} width="max-w-3xl">
         <div className="flex flex-col gap-4">
@@ -350,115 +474,6 @@ export default function Bills() {
             <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>
           </div>
         </div>
-      </Modal>
-
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Bill ${detail?.billNumber || ''}`} width="max-w-2xl">
-        {detail && (
-          <div className="bill-document flex flex-col gap-4">
-            {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-              <div>
-                <p className="text-slate-500">Supplier</p>
-                <p className="font-medium">{detail.supplier?.name}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="btn-ghost inline-flex items-center gap-2"
-                >
-                  <Printer size={16} /> Print
-                </button>
-                {isAdmin && detail.status !== 'POSTING' && (
-                  <button
-                    type="button"
-                    onClick={() => openEdit(detail)}
-                    className="btn-ghost inline-flex items-center gap-2"
-                  >
-                    <Pencil size={16} /> Edit
-                  </button>
-                )}
-                {isAdmin && detail.status !== 'POSTING' && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteClick(detail._id)}
-                    className="btn-ghost inline-flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h1 className="text-xl font-semibold">Purchase Bill</h1>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-500 text-xs">Bill Number</p>
-                  <p className="font-medium">{detail.billNumber}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-slate-500 text-xs">Date</p>
-                  <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-3">
-                <p className="text-slate-500 text-xs">Supplier</p>
-                <p className="font-medium">{detail.supplier?.name}</p>
-              </div>
-            </div>
-
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                  <th className="py-2 font-semibold">Item</th>
-                  <th className="font-semibold">Warehouse</th>
-                  <th className="text-right font-semibold">Qty</th>
-                  <th className="text-right font-semibold">Cost</th>
-                  <th className="text-right font-semibold">Disc %</th>
-                  <th className="text-right font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.items.map((it, i) => (
-                  <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
-                    <td className="py-2">{it.product?.name}</td>
-                    <td>{it.warehouse?.name}</td>
-                    <td className="text-right font-figures">{it.quantity}</td>
-                    <td className="text-right font-figures">{money(it.unitCost)}</td>
-                    <td className="text-right font-figures">{it.discountRate || 0}%</td>
-                    <td className="text-right font-figures">{money(it.lineTotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="border-t border-slate-200 pt-3 space-y-1">
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-slate-600">Subtotal</span>
-                <span className="font-figures w-24 text-right">{money(detail.subTotal)}</span>
-              </div>
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-slate-600">Tax</span>
-                <span className="font-figures w-24 text-right">{money(detail.taxTotal)}</span>
-              </div>
-              <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
-                <span>Total</span>
-                <span className="font-figures w-24 text-right">{money(detail.grandTotal)}</span>
-              </div>
-            </div>
-
-            <div className="print:hidden">
-              {isAdmin && (
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  {detail.status === 'DRAFT' && <button disabled={detailBusy} onClick={() => handlePost(detail._id)} className="btn-teal disabled:opacity-60">{detailBusy ? 'Posting…' : 'Post to ledger'}</button>}
-                  {detail.status !== 'VOID' && detail.status !== 'DRAFT' && detail.status !== 'POSTING' && <button onClick={() => handleVoidClick(detail._id)} className="btn-ghost text-ledger-rose">Void</button>}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </Modal>
 
       <ConfirmModal

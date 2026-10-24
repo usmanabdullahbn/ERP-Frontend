@@ -7,8 +7,8 @@ import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
+// Each supplier prints as its own section with the name in the heading.
 const exportColumns = [
-  { key: 'supplier', label: 'Supplier' },
   { key: 'date', label: 'Date', date: true },
   { key: 'type', label: 'Type' },
   { key: 'ref', label: 'Ref' },
@@ -54,18 +54,24 @@ export default function SupplierLedger() {
   const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
   const subtitle = `${supplierNames || 'All suppliers'} — ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
 
-  const exportRows = () => {
+  const exportSections = () => (rows || []).map((ledger) => {
     const out = [];
-    (rows || []).forEach((ledger) => {
-      const supplier = ledger.supplier?.name || '—';
-      if (showBf) out.push({ supplier, date: '', type: 'Balance b/f', ref: '', debit: '', credit: '', balance: ledger.openingBalance || 0 });
-      ledger.entries.forEach((e) => out.push({ supplier, date: e.date, type: e.type, ref: e.ref, jvNumber: e.jvNumber || '', debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
-      out.push({ supplier, date: '', type: 'Closing balance', ref: '', debit: '', credit: '', balance: ledger.closingBalance });
+    if (showBf) out.push({ _bold: true, type: 'Balance b/f', balance: ledger.openingBalance || 0 });
+    let totalDebit = 0, totalCredit = 0;
+    ledger.entries.forEach((e) => {
+      totalDebit += e.debit || 0;
+      totalCredit += e.credit || 0;
+      out.push({ date: e.date, type: e.type, ref: e.ref, jvNumber: e.jvNumber || '', debit: e.debit || '', credit: e.credit || '', balance: e.balance });
     });
-    return out;
-  };
-  const exportPdf = () => downloadReportPdf({ title: 'Supplier Ledger', subtitle, columns: exportColumns, rows: exportRows() });
-  const exportExcel = () => downloadReportExcel({ title: 'Supplier Ledger', subtitle, columns: exportColumns, rows: exportRows() });
+    return {
+      title: `${ledger.supplier?.code ? `${ledger.supplier.code} - ` : ''}${ledger.supplier?.name || '—'}`,
+      subtitle: `Opening ${money(ledger.openingBalance || 0)}  ·  Closing ${money(ledger.closingBalance)}`,
+      rows: out,
+      totals: ['Total', '', '', '', money(totalDebit), money(totalCredit), money(ledger.closingBalance)]
+    };
+  });
+  const exportPdf = () => downloadReportPdf({ title: 'Supplier Ledger', subtitle, columns: exportColumns, sections: exportSections() });
+  const exportExcel = () => downloadReportExcel({ title: 'Supplier Ledger', subtitle, columns: exportColumns, sections: exportSections() });
 
   return (
     <PageLayout title="Supplier Ledger" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>

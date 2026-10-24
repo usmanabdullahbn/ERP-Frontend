@@ -170,7 +170,8 @@ export default function Receipts() {
         await api.post('/receipts', payload);
       }
       closeModal();
-      setDetail(null);
+      // Stay on the record that was edited, showing its saved state.
+      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save receipt.');

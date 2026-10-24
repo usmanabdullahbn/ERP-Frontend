@@ -170,7 +170,8 @@ export default function Payments() {
         await api.post('/payments', payload);
       }
       closeModal();
-      setDetail(null);
+      // Stay on the record that was edited, showing its saved state.
+      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save payment.');

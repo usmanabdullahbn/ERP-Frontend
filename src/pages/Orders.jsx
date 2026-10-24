@@ -106,7 +106,8 @@ export default function Orders() {
       if (editingOrder) await api.put(`/orders/${editingOrder._id}`, payload);
       else await api.post('/orders', payload);
       setModalOpen(false);
-      setDetail(null);
+      // Stay on the record that was edited, showing its saved state.
+      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save order.');

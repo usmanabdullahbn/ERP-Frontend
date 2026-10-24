@@ -7,8 +7,8 @@ import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
+// Each account prints as its own section with the account in the heading.
 const exportColumns = [
-  { key: 'account', label: 'Account' },
   { key: 'date', label: 'Date', date: true },
   { key: 'jvNumber', label: 'JV #' },
   { key: 'reference', label: 'Reference' },
@@ -51,18 +51,19 @@ export default function GeneralLedger() {
   const money = formatMoney;
   const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
 
-  const exportRows = () => {
-    const out = [];
-    (data || []).forEach((ledger) => {
-      const account = `${ledger.account.code} - ${ledger.account.name}`;
-      if (showBf) out.push({ account, date: '', reference: '', description: 'Balance b/f', debit: '', credit: '', balance: ledger.openingBalance || 0 });
-      ledger.entries.forEach((e) => out.push({ account, date: e.date, jvNumber: e.jvNumber || '', reference: e.reference, description: e.description, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
-      out.push({ account, date: '', reference: '', description: 'Closing balance', debit: money(ledger.totalDebit), credit: money(ledger.totalCredit), balance: ledger.closingBalance });
-    });
-    return out;
-  };
-  const exportPdf = () => downloadReportPdf({ title: 'General Ledger', subtitle, columns: exportColumns, rows: exportRows() });
-  const exportExcel = () => downloadReportExcel({ title: 'General Ledger', subtitle, columns: exportColumns, rows: exportRows() });
+  const exportSections = () => (data || []).map((ledger) => {
+    const rows = [];
+    if (showBf) rows.push({ _bold: true, description: 'Balance b/f', balance: ledger.openingBalance || 0 });
+    ledger.entries.forEach((e) => rows.push({ date: e.date, jvNumber: e.jvNumber || '', reference: e.reference, description: e.description, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
+    return {
+      title: `${ledger.account.code} - ${ledger.account.name}`,
+      subtitle: `${ledger.account.type}  ·  Opening ${money(ledger.openingBalance || 0)}  ·  Closing ${money(ledger.closingBalance)}`,
+      rows,
+      totals: ['Total', '', '', '', money(ledger.totalDebit), money(ledger.totalCredit), money(ledger.closingBalance)]
+    };
+  });
+  const exportPdf = () => downloadReportPdf({ title: 'General Ledger', subtitle, columns: exportColumns, sections: exportSections() });
+  const exportExcel = () => downloadReportExcel({ title: 'General Ledger', subtitle, columns: exportColumns, sections: exportSections() });
 
   return (
     <PageLayout title="General Ledger" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>

@@ -54,6 +54,7 @@ const SECTIONS = [
     perm: ['reports.view'],
     items: [
       { to: '/reports/stock-summary', label: 'Stock Summary', icon: BarChart3 },
+      { to: '/reports/item-activity', label: 'Item Activity' },
       { to: '/reports/pending-orders', label: 'Pending Orders' },
       { to: '/reports/pending-purchase-orders', label: 'Pending Purchase Orders' },
       { to: '/reports/sales-journal', label: 'Sales Journal' },

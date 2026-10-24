@@ -80,8 +80,20 @@ body {
     display: none !important;
   }
 
-  main > *:not(.fixed) {
+  /* A record's own page (bill, invoice, journal voucher) marks its printable
+     content with .print-page. When no modal is open, that is what prints. */
+  main > *:not(.fixed):not(.print-page) {
     display: none !important;
+  }
+
+  main:has(> .fixed) > .print-page {
+    display: none !important;
+  }
+
+  main > .print-page > div {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
   }
 
   main .fixed.inset-0 {
