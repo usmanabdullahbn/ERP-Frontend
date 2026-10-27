@@ -4,20 +4,24 @@ import { Plus, Trash2, Pencil, Printer, Ban, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
-import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
+import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate } from '../components/ui';
 
 let lineKeySeq = 0;
+// Product, Warehouse, Qty, Price, Disc %, Disc Amt, Total, delete
+const LINE_GRID = 'minmax(0,2.4fr) minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1.1fr) minmax(0,0.9fr) minmax(0,1.1fr) minmax(0,1.1fr) 32px';
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitPrice: 0, taxRate: 0, discountRate: 0 });
 
 /*
-  /invoices lists invoices; /invoices/:id is the invoice's own page. Both share
-  this component so the edit form, post, void and delete logic live in one place.
+  /invoices lists invoices; /invoices/:id is the invoice's own page;
+  /invoices/new and /invoices/:id/edit (mode "new" / "edit") show the form as a
+  full page. All share this component so the form, post, void and delete logic
+  live in one place.
 */
-export default function Invoices() {
+export default function Invoices({ mode }) {
   const { isAdmin } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -28,7 +32,6 @@ export default function Invoices() {
   const [warehouses, setWarehouses] = useState([]);
   const [loadError, setLoadError] = useState('');
 
-  const [modalOpen, setModalOpen] = useState(false);
   const [customer, setCustomer] = useState('');
   const [date, setDate] = useState(todayLocalISODate());
   const [dueDate, setDueDate] = useState('');
@@ -56,8 +59,13 @@ export default function Invoices() {
   useEffect(() => {
     setDetail(null);
     setDetailError('');
-    if (id) openDetail({ _id: id }).catch(() => setDetailError('Could not load this invoice — it may have been deleted.'));
-  }, [id]);
+    if (id && !mode) openDetail({ _id: id }).catch(() => setDetailError('Could not load this invoice — it may have been deleted.'));
+  }, [id, mode]);
+
+  useEffect(() => {
+    if (mode === 'new') resetForm();
+    if (mode === 'edit' && id) loadForEdit({ _id: id }).catch(() => setError('Could not load this invoice — it may have been deleted.'));
+  }, [mode, id]);
 
   const defaultWarehouseId = warehouses.find((w) => w.isDefault)?._id || warehouses[0]?._id || '';
 
@@ -79,17 +87,33 @@ export default function Invoices() {
     setLines(next);
   };
 
-  const addLine = () => setLines([...lines, newLine(defaultWarehouseId)]);
-  const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
-
   const selectedCustomerDiscount = Number(customers.find((c) => c._id === customer)?.discountRate || 0);
 
+  // New lines start with the selected customer's default discount.
+  const addLine = () => setLines([...lines, { ...newLine(defaultWarehouseId), discountRate: selectedCustomerDiscount }]);
+  const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
+
+  // Lines still on the previous customer's default (or 0) move to the new
+  // customer's default; a discount typed in by hand is left alone.
   const applyCustomerDiscount = (nextCustomerId) => {
     const nextDiscount = Number(customers.find((c) => c._id === nextCustomerId)?.discountRate || 0);
-    setLines((prev) => prev.map((line) => ({
-      ...line,
-      discountRate: Number.isFinite(Number(line.discountRate)) && Number(line.discountRate) !== 0 ? Number(line.discountRate) : nextDiscount
-    })));
+    setLines((prev) => prev.map((line) => {
+      const current = Number(line.discountRate || 0);
+      return current === 0 || current === selectedCustomerDiscount ? { ...line, discountRate: nextDiscount } : line;
+    }));
+  };
+
+  const lineGross = (l) => (l.quantity || 0) * (l.unitPrice || 0);
+  const lineDiscount = (l) => Math.round(lineGross(l) * (l.discountRate || 0)) / 100;
+
+  // Typing a discount amount converts it to the line's discount %, which is
+  // what gets saved. The raw text is kept while typing so "12." isn't lost.
+  const setDiscountAmount = (i, text) => {
+    const gross = lineGross(lines[i]);
+    const amount = Math.min(Math.max(Number(text) || 0, 0), gross);
+    // 6 decimals keeps the saved amount exact to the paisa even on large lines.
+    const rate = gross > 0 ? Math.round((amount / gross) * 100 * 1e6) / 1e6 : 0;
+    updateLine(i, { discountRate: rate, _discAmtText: text });
   };
 
   const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0 && l.unitPrice >= 0);
@@ -103,17 +127,23 @@ export default function Invoices() {
       const discount = base * ((l.discountRate || 0) / 100);
       const taxable = base - discount;
       const tax = (taxable * (l.taxRate || 0)) / 100;
+      acc.gross += base;
+      acc.discount += discount;
       acc.subTotal += taxable;
       acc.taxTotal += tax;
       return acc;
     },
-    { subTotal: 0, taxTotal: 0 }
+    { gross: 0, discount: 0, subTotal: 0, taxTotal: 0 }
   );
 
-  const openCreate = () => {
+  const openCreate = () => navigate('/invoices/new');
+  const openEdit = (inv) => navigate(`/invoices/${inv._id}/edit`);
+  const formBackTo = mode === 'edit' && id ? `/invoices/${id}` : '/invoices';
+
+  const resetForm = () => {
     setEditingInvoice(null);
     setCustomer(''); setDate(todayLocalISODate()); setDueDate('');
-    setLines([newLine(defaultWarehouseId)]); setError(''); setModalOpen(true);
+    setLines([newLine(defaultWarehouseId)]); setError('');
   };
 
   const save = async (postNow) => {
@@ -127,20 +157,17 @@ export default function Invoices() {
         customer,
         date,
         dueDate: dueDate || undefined,
-        items: validLines.map(({ _key, ...rest }) => rest),
+        items: validLines.map(({ _key, _discAmtText, ...rest }) => rest),
         notes: editingInvoice?.notes || '',
         postNow
       };
-      if (editingInvoice) {
-        await api.put(`/invoices/${editingInvoice._id}`, payload);
-      } else {
-        await api.post('/invoices', payload);
-      }
+      const { data: saved } = editingInvoice
+        ? await api.put(`/invoices/${editingInvoice._id}`, payload)
+        : await api.post('/invoices', payload);
       setEditingInvoice(null);
-      setModalOpen(false);
-      // Stay on the record that was edited, showing its saved state.
-      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
+      // Land on the saved invoice's own page.
+      navigate(saved?._id ? `/invoices/${saved._id}` : '/invoices');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save invoice.');
     } finally {
@@ -154,7 +181,8 @@ export default function Invoices() {
     setDetail(data);
   };
 
-  const openEdit = async (inv) => {
+  const loadForEdit = async (inv) => {
+    setError('');
     const { data } = await api.get(`/invoices/${inv._id}`);
     setEditingInvoice(data);
     setCustomer(data.customer?._id || '');
@@ -169,8 +197,6 @@ export default function Invoices() {
       taxRate: item.taxRate,
       discountRate: item.discountRate || 0
     })));
-    setError('');
-    setModalOpen(true);
   };
 
   const handleDeleteClick = (id) => {
@@ -305,13 +331,13 @@ export default function Invoices() {
 
   return (
     <PageLayout
-      title={id ? `Invoice ${detail?.invoiceNumber || ''}` : 'Sales Invoices'}
-      actions={id ? viewActions : listActions}
+      title={mode === 'new' ? 'New Invoice' : mode === 'edit' ? `Edit Invoice ${editingInvoice?.invoiceNumber || ''}` : id ? `Invoice ${detail?.invoiceNumber || ''}` : 'Sales Invoices'}
+      actions={mode ? null : id ? viewActions : listActions}
     >
-      {!id && loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      {!id && <DataTable columns={columns} data={invoices} onRowClick={(r) => navigate(`/invoices/${r._id}`)} />}
+      {!mode && !id && loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
+      {!mode && !id && <DataTable columns={columns} data={invoices} onRowClick={(r) => navigate(`/invoices/${r._id}`)} />}
 
-      {id && (
+      {!mode && id && (
         <div className="print-page">
           <Link to="/invoices" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-ink-900 mb-4 print:hidden">
             <ArrowLeft size={15} /> Back to Sales Invoices
@@ -351,6 +377,7 @@ export default function Invoices() {
                       <th className="text-right font-semibold">Qty</th>
                       <th className="text-right font-semibold">Price</th>
                       <th className="text-right font-semibold">Disc %</th>
+                      <th className="text-right font-semibold">Disc Amt</th>
                       <th className="text-right font-semibold">Total</th>
                     </tr>
                   </thead>
@@ -361,7 +388,8 @@ export default function Invoices() {
                         <td>{it.warehouse?.name}</td>
                         <td className="text-right font-figures">{it.quantity}</td>
                         <td className="text-right font-figures">{money(it.unitPrice)}</td>
-                        <td className="text-right font-figures">{it.discountRate || 0}%</td>
+                        <td className="text-right font-figures">{Math.round((it.discountRate || 0) * 100) / 100}%</td>
+                        <td className="text-right font-figures">{money(lineDiscount(it))}</td>
                         <td className="text-right font-figures">{money(it.lineTotal)}</td>
                       </tr>
                     ))}
@@ -370,6 +398,18 @@ export default function Invoices() {
               </div>
 
               <div className="border-t border-slate-200 pt-3 space-y-1">
+                {detail.items.some((it) => it.discountRate) && (
+                  <>
+                    <div className="flex justify-end gap-6 text-sm">
+                      <span className="text-slate-600">Gross</span>
+                      <span className="font-figures w-28 text-right">{money(detail.items.reduce((s, it) => s + lineGross(it), 0))}</span>
+                    </div>
+                    <div className="flex justify-end gap-6 text-sm">
+                      <span className="text-slate-600">Discount</span>
+                      <span className="font-figures w-28 text-right">−{money(detail.items.reduce((s, it) => s + lineDiscount(it), 0))}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-end gap-6 text-sm">
                   <span className="text-slate-600">Subtotal</span>
                   <span className="font-figures w-28 text-right">{money(detail.subTotal)}</span>
@@ -395,8 +435,12 @@ export default function Invoices() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingInvoice ? 'Edit Invoice' : 'New Invoice'} width="max-w-3xl">
-        <div className="flex flex-col gap-4">
+      {mode && (
+        <div>
+          <Link to={formBackTo} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-ink-900 mb-4">
+            <ArrowLeft size={15} /> {mode === 'edit' ? 'Back to invoice' : 'Back to Sales Invoices'}
+          </Link>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-3 gap-3">
             <label className="block">
@@ -426,12 +470,13 @@ export default function Invoices() {
               <button onClick={addLine} type="button" className="text-xs text-ledger-teal hover:underline">+ Add line</button>
             </div>
             <div className="flex flex-col gap-2">
-              <div className="grid gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500" style={{ gridTemplateColumns: 'minmax(0,2.5fr) minmax(0,1.7fr) minmax(0,0.8fr) minmax(0,1.2fr) minmax(0,1.1fr) minmax(0,1.1fr) 32px' }}>
+              <div className="grid gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500" style={{ gridTemplateColumns: LINE_GRID }}>
                 <span>Product</span>
                 <span>Warehouse</span>
                 <span>Qty</span>
                 <span>Price</span>
-                <span>Discount</span>
+                <span>Disc %</span>
+                <span>Disc Amt</span>
                 <span>Total</span>
                 <span className="sr-only">Delete</span>
               </div>
@@ -442,12 +487,9 @@ export default function Invoices() {
                   <div
                     key={line._key}
                     className="grid gap-2 items-end"
-                    style={{ gridTemplateColumns: 'minmax(0,2.5fr) minmax(0,1.7fr) minmax(0,0.8fr) minmax(0,1.2fr) minmax(0,1.1fr) minmax(0,1.1fr) 32px' }}
+                    style={{ gridTemplateColumns: LINE_GRID }}
                   >
-                    <select value={line.product} onChange={(e) => updateLine(i, { product: e.target.value })} className="input">
-                      <option value="">Product…</option>
-                      {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
-                    </select>
+                    <ProductPicker products={products} value={line.product} onChange={(product) => updateLine(i, { product })} />
                     <select value={line.warehouse} onChange={(e) => updateLine(i, { warehouse: e.target.value })} className={`input ${!line.warehouse && line.product ? 'border-ledger-rose' : ''}`}>
                       <option value="">Warehouse…</option>
                       {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
@@ -458,6 +500,17 @@ export default function Invoices() {
                       <input type="number" min="0" max="100" step="0.01" placeholder="0" value={line.discountRate} onChange={(e) => updateLine(i, { discountRate: Number(e.target.value) })} className="input font-figures pr-7" />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
                     </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      title="Discount amount — converted to the line's discount %"
+                      value={line._discAmtText ?? lineDiscount(line)}
+                      onChange={(e) => setDiscountAmount(i, e.target.value)}
+                      onBlur={() => updateLine(i, { _discAmtText: undefined })}
+                      className="input font-figures"
+                    />
                     <div className="input font-figures bg-slate-50 text-slate-700 flex items-center justify-end h-[42px] px-3 rounded-lg">
                       {money(lineTotal)}
                     </div>
@@ -465,7 +518,7 @@ export default function Invoices() {
                       <Trash2 size={16} />
                     </button>
                     {incomplete && (
-                      <p className="col-span-12 -mt-1 text-xs text-ledger-rose">
+                      <p className="col-span-full -mt-1 text-xs text-ledger-rose">
                         This line needs a product, warehouse, quantity above zero, and a non-negative price — it won't be saved until then.
                       </p>
                     )}
@@ -485,7 +538,9 @@ export default function Invoices() {
               Customer discount
               <span className="font-figures text-ink-800 ml-2">{selectedCustomerDiscount}%</span>
             </div>
-            <div className="flex gap-6">
+            <div className="flex flex-wrap justify-end gap-6">
+              <span className="text-slate-500">Gross <span className="font-figures text-ink-800 ml-2">{money(totals.gross)}</span></span>
+              <span className="text-slate-500">Discount <span className="font-figures text-ledger-rose ml-2">−{money(totals.discount)}</span></span>
               <span className="text-slate-500">Subtotal <span className="font-figures text-ink-800 ml-2">{money(totals.subTotal)}</span></span>
               <span className="text-slate-500">Tax <span className="font-figures text-ink-800 ml-2">{money(totals.taxTotal)}</span></span>
               <span className="font-medium">Total <span className="font-figures ml-2">{money(totals.subTotal + totals.taxTotal)}</span></span>
@@ -493,11 +548,13 @@ export default function Invoices() {
           </div>
 
           <div className="flex justify-end gap-2">
+            <button type="button" disabled={submitting} onClick={() => navigate(formBackTo)} className="btn-ghost disabled:opacity-60">Cancel</button>
             <button disabled={submitting} onClick={() => save(false)} className="btn-ghost disabled:opacity-60">Save as draft</button>
             <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>
           </div>
         </div>
-      </Modal>
+        </div>
+      )}
 
       <ConfirmModal
         open={confirmOpen}

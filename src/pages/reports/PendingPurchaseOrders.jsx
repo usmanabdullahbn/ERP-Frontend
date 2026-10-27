@@ -59,8 +59,10 @@ export default function PendingPurchaseOrders() {
 
   const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
   const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}`;
-  const exportPdf = () => downloadReportPdf({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows });
-  const exportExcel = () => downloadReportExcel({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows });
+  const sum = (key) => (rows || []).reduce((s, r) => s + Number(r[key] || 0), 0);
+  const totals = [`Total (${(rows || []).length} POs)`, '', '', '', '', '', formatMoney(sum('grandTotal')), formatMoney(sum('amountBilled')), formatMoney(sum('balanceDue'))];
+  const exportPdf = () => downloadReportPdf({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows, totals });
 
   return (
     <PageLayout title="Pending Purchase Orders" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -87,7 +89,7 @@ export default function PendingPurchaseOrders() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view pending purchase orders.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} emptyMessage="No pending purchase orders found." />}
+      {rows && <DataTable columns={columns} data={rows} emptyMessage="No pending purchase orders found." footer={[totals]} />}
     </PageLayout>
   );
 }

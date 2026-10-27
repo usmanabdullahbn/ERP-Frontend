@@ -4,10 +4,11 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import FilterBar, { matchesSearch } from '../components/FilterBar';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney } from '../components/ui';
+import { formatMoney, formatAltQty } from '../components/ui';
 
-const empty = { sku: '', name: '', category: '', unit: 'pcs', type: 'STOCK', costPrice: 0, salePrice: 0, taxRate: 0, reorderLevel: 0, openingStock: 0 };
+const empty = { sku: '', name: '', category: '', unit: 'pcs', altUnit: '', altUnitFactor: 0, type: 'STOCK', costPrice: 0, salePrice: 0, taxRate: 0, reorderLevel: 0, openingStock: 0 };
 
 export default function Products() {
   const { hasPermission } = useAuth();
@@ -21,12 +22,16 @@ export default function Products() {
   const [loadError, setLoadError] = useState('');
   const [detail, setDetail] = useState(null);
   const [movements, setMovements] = useState([]);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState('');
 
   const load = () => api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
-  const openEdit = (p) => { setEditing(p); setForm({ ...p, openingStock: Number(p.totalStock || 0) }); setError(''); setModalOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ ...p, altUnit: p.altUnit || '', altUnitFactor: p.altUnitFactor || 0, openingStock: Number(p.totalStock || 0) }); setError(''); setModalOpen(true); };
 
   const save = async (e) => {
     e.preventDefault();
@@ -58,6 +63,21 @@ export default function Products() {
 
   const money = formatMoney;
 
+  const isLow = (p) => p.type === 'STOCK' && p.totalStock <= p.reorderLevel;
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+
+  const filteredProducts = products.filter((p) =>
+    (!typeFilter || p.type === typeFilter) &&
+    (!categoryFilter || p.category === categoryFilter) &&
+    (!stockFilter ||
+      (stockFilter === 'LOW' && isLow(p)) ||
+      (stockFilter === 'OUT' && p.type === 'STOCK' && Number(p.totalStock || 0) <= 0) ||
+      (stockFilter === 'IN' && p.type === 'STOCK' && !isLow(p))) &&
+    matchesSearch(search, p.sku, p.name, p.category, p.unit, p.salePrice)
+  );
+  const hasFilters = !!(search || typeFilter || categoryFilter || stockFilter);
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); setCategoryFilter(''); setStockFilter(''); };
+
   const columns = [
     { key: 'sku', label: 'SKU' },
     { key: 'name', label: 'Name' },
@@ -67,10 +87,15 @@ export default function Products() {
     {
       key: 'totalStock', label: 'Stock', align: 'right', mono: true,
       render: (r) => (
-        <span className={r.type === 'STOCK' && r.totalStock <= r.reorderLevel ? 'text-ledger-rose flex items-center justify-end gap-1' : ''}>
-          {r.type === 'STOCK' && r.totalStock <= r.reorderLevel && <AlertTriangle size={12} />}
-          {r.type === 'STOCK' ? r.totalStock : '—'}
-        </span>
+        <>
+          <span className={r.type === 'STOCK' && r.totalStock <= r.reorderLevel ? 'text-ledger-rose flex items-center justify-end gap-1' : ''}>
+            {r.type === 'STOCK' && r.totalStock <= r.reorderLevel && <AlertTriangle size={12} />}
+            {r.type === 'STOCK' ? r.totalStock : '—'}
+          </span>
+          {r.type === 'STOCK' && formatAltQty(r.totalStock, r) && (
+            <span className="block text-xs text-slate-400">{formatAltQty(r.totalStock, r)}</span>
+          )}
+        </>
       )
     },
     { key: 'actions', label: '', align: 'right', render: (r) => (
@@ -95,7 +120,27 @@ export default function Products() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={products} onRowClick={openDetail} />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Search SKU, name, category…" showClear={hasFilters} onClear={clearFilters}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+          <option value="">All types</option>
+          <option value="STOCK">Stock item</option>
+          <option value="NON_STOCK">Non-stock item</option>
+          <option value="SERVICE">Service</option>
+        </select>
+        {categories.length > 0 && (
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input w-auto">
+            <option value="">All categories</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="input w-auto">
+          <option value="">All stock levels</option>
+          <option value="IN">In stock</option>
+          <option value="LOW">Low / reorder</option>
+          <option value="OUT">Out of stock</option>
+        </select>
+      </FilterBar>
+      <DataTable columns={columns} data={filteredProducts} onRowClick={openDetail} emptyMessage={hasFilters ? 'No products match your filters.' : 'No records yet.'} />
 
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editing ? 'Edit Product' : 'New Product'}>
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -118,6 +163,16 @@ export default function Products() {
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Unit</span>
               <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="input" />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Alt Unit (optional)</span>
+              <input value={form.altUnit} onChange={(e) => setForm({ ...form, altUnit: e.target.value })} placeholder="e.g. length, box" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">1 {form.altUnit || 'alt unit'} = ? {form.unit || 'units'}</span>
+              <input type="number" min="0" step="any" value={form.altUnitFactor} onChange={(e) => setForm({ ...form, altUnitFactor: Number(e.target.value) })} className="input font-figures" />
             </label>
           </div>
           <label className="block">

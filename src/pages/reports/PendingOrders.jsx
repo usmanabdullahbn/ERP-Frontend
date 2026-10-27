@@ -59,8 +59,10 @@ export default function PendingOrders() {
 
   const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
   const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${customerNames ? ` — ${customerNames}` : ''}`;
-  const exportPdf = () => downloadReportPdf({ title: 'Pending Orders', subtitle, columns: exportColumns, rows });
-  const exportExcel = () => downloadReportExcel({ title: 'Pending Orders', subtitle, columns: exportColumns, rows });
+  const sum = (key) => (rows || []).reduce((s, r) => s + Number(r[key] || 0), 0);
+  const totals = [`Total (${(rows || []).length} orders)`, '', '', '', '', '', formatMoney(sum('grandTotal')), formatMoney(sum('amountInvoiced')), formatMoney(sum('balanceDue'))];
+  const exportPdf = () => downloadReportPdf({ title: 'Pending Orders', subtitle, columns: exportColumns, rows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Pending Orders', subtitle, columns: exportColumns, rows, totals });
 
   return (
     <PageLayout title="Pending Orders" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -87,7 +89,7 @@ export default function PendingOrders() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view pending orders.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} emptyMessage="No pending orders found." />}
+      {rows && <DataTable columns={columns} data={rows} emptyMessage="No pending orders found." footer={[totals]} />}
     </PageLayout>
   );
 }

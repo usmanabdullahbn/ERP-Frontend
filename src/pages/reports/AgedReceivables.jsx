@@ -51,8 +51,10 @@ export default function AgedReceivables() {
 
   const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
   const subtitle = `As on ${formatDate(asOf)}${customerNames ? ` — ${customerNames}` : ''}`;
-  const exportPdf = () => downloadReportPdf({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows });
-  const exportExcel = () => downloadReportExcel({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows });
+  const totalDue = (rows || []).reduce((s, r) => s + Number(r.balanceDue || 0), 0);
+  const totals = [`Total (${(rows || []).length} invoices)`, '', '', '', '', formatMoney(totalDue)];
+  const exportPdf = () => downloadReportPdf({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows, totals });
 
   return (
     <PageLayout title="Aged Receivables" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -77,7 +79,7 @@ export default function AgedReceivables() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view aged receivables.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} />}
+      {rows && <DataTable columns={columns} data={rows} footer={[totals]} />}
     </PageLayout>
   );
 }

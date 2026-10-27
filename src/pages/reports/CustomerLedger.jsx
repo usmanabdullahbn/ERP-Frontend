@@ -154,6 +154,16 @@ export default function CustomerLedger() {
                       <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">No entries in this period.</td></tr>
                     )}
                   </tbody>
+                  {ledger.entries.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t-2 border-ink-800 font-semibold">
+                        <td className="px-4 py-3" colSpan={4}>Total</td>
+                        <td className="px-4 py-3 text-right font-figures">{money(ledger.entries.reduce((s, e) => s + (e.debit || 0), 0))}</td>
+                        <td className="px-4 py-3 text-right font-figures">{money(ledger.entries.reduce((s, e) => s + (e.credit || 0), 0))}</td>
+                        <td className="px-4 py-3 text-right font-figures">{money(ledger.closingBalance || 0)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             );

@@ -1,20 +1,28 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, ArrowRight, Printer } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Plus, Trash2, Pencil, ArrowRight, Printer, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
+import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate } from '../components/ui';
 
 let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitCost: 0, taxRate: 0, discountRate: 0 });
 
-export default function PurchaseOrders() {
+/*
+  /purchase-orders lists POs (detail opens in a modal); /purchase-orders/new
+  and /purchase-orders/:id/edit (mode "new" / "edit") show the form as a full page.
+*/
+export default function PurchaseOrders({ mode }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('purchases.manage');
+  const { id } = useParams();
+  const navigate = useNavigate();
 
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -22,7 +30,6 @@ export default function PurchaseOrders() {
   const [warehouses, setWarehouses] = useState([]);
   const [loadError, setLoadError] = useState('');
 
-  const [modalOpen, setModalOpen] = useState(false);
   const [supplier, setSupplier] = useState('');
   const [date, setDate] = useState(todayLocalISODate());
   const [dueDate, setDueDate] = useState('');
@@ -46,6 +53,11 @@ export default function PurchaseOrders() {
     api.get('/products').then((res) => setProducts(res.data)).catch(() => setLoadError('Could not load products.'));
     api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setLoadError('Could not load warehouses.'));
   }, []);
+
+  useEffect(() => {
+    if (mode === 'new') resetForm();
+    if (mode === 'edit' && id) loadForEdit({ _id: id }).catch(() => setError('Could not load this purchase order — it may have been deleted.'));
+  }, [mode, id]);
 
   const defaultWarehouseId = warehouses.find((w) => w.isDefault)?._id || warehouses[0]?._id || '';
 
@@ -78,14 +90,16 @@ export default function PurchaseOrders() {
     return acc;
   }, { subTotal: 0, taxTotal: 0 });
 
-  const openCreate = () => {
+  const openCreate = () => navigate('/purchase-orders/new');
+  const openEdit = (po) => { setDetail(null); navigate(`/purchase-orders/${po._id}/edit`); };
+
+  const resetForm = () => {
     setEditingPO(null);
     setSupplier('');
     setDate(todayLocalISODate());
     setDueDate('');
     setLines([newLine(defaultWarehouseId)]);
     setError('');
-    setModalOpen(true);
   };
 
   const save = async () => {
@@ -104,10 +118,8 @@ export default function PurchaseOrders() {
       };
       if (editingPO) await api.put(`/purchase-orders/${editingPO._id}`, payload);
       else await api.post('/purchase-orders', payload);
-      setModalOpen(false);
-      // Stay on the record that was edited, showing its saved state.
-      if (detail) openDetail(detail).catch(() => setDetail(null));
       load();
+      navigate('/purchase-orders');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save purchase order.');
     } finally {
@@ -121,7 +133,8 @@ export default function PurchaseOrders() {
     setDetail(data);
   };
 
-  const openEdit = async (po) => {
+  const loadForEdit = async (po) => {
+    setError('');
     const { data } = await api.get(`/purchase-orders/${po._id}`);
     setEditingPO(data);
     setSupplier(data.supplier?._id || '');
@@ -136,8 +149,6 @@ export default function PurchaseOrders() {
       taxRate: item.taxRate,
       discountRate: item.discountRate || 0
     })));
-    setError('');
-    setModalOpen(true);
   };
 
   const handleDeleteClick = (id) => {
@@ -204,11 +215,11 @@ export default function PurchaseOrders() {
   ];
 
   return (
-    <PageLayout title="Purchase Orders" actions={canManage && (
+    <PageLayout title={mode === 'new' ? 'New Purchase Order' : mode === 'edit' ? `Edit Purchase Order ${editingPO?.poNumber || ''}` : 'Purchase Orders'} actions={!mode && canManage && (
       <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary"><Plus size={15} /> New Purchase Order</button>
     )}>
-      {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <DataTable columns={columns} data={purchaseOrders} onRowClick={openDetail} />
+      {!mode && loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
+      {!mode && <DataTable columns={columns} data={purchaseOrders} onRowClick={openDetail} />}
 
       <ConfirmModal
         open={confirmOpen}
@@ -222,8 +233,12 @@ export default function PurchaseOrders() {
         }}
       />
 
-      <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editingPO ? 'Edit Purchase Order' : 'New Purchase Order'} width="max-w-3xl">
-        <div className="flex flex-col gap-4">
+      {mode && (
+        <div>
+          <Link to="/purchase-orders" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-ink-900 mb-4">
+            <ArrowLeft size={15} /> Back to Purchase Orders
+          </Link>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <div className="grid grid-cols-3 gap-3">
             <label className="block">
@@ -248,10 +263,7 @@ export default function PurchaseOrders() {
               <div key={line._key} className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
                 <label className="block">
                   <span className="block text-xs font-medium text-slate-600 mb-1">Product</span>
-                  <select value={line.product} onChange={(e) => updateLine(idx, { product: e.target.value })} className="input">
-                    <option value="">Select product…</option>
-                    {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
-                  </select>
+                  <ProductPicker products={products} value={line.product} onChange={(product) => updateLine(idx, { product })} />
                 </label>
                 <label className="block">
                   <span className="block text-xs font-medium text-slate-600 mb-1">Warehouse</span>
@@ -289,13 +301,17 @@ export default function PurchaseOrders() {
             </div>
           </div>
 
-          <button type="button" disabled={submitting} onClick={save} className="btn-teal disabled:opacity-60">
-            {submitting ? 'Saving…' : editingPO ? 'Save purchase order' : 'Create purchase order'}
-          </button>
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={submitting} onClick={() => navigate('/purchase-orders')} className="btn-ghost disabled:opacity-60">Cancel</button>
+            <button type="button" disabled={submitting} onClick={save} className="btn-teal disabled:opacity-60">
+              {submitting ? 'Saving…' : editingPO ? 'Save purchase order' : 'Create purchase order'}
+            </button>
+          </div>
         </div>
-      </Modal>
+        </div>
+      )}
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Purchase Order ${detail?.poNumber || ''}`} width="max-w-2xl">
+      <Modal open={!!detail && !mode} onClose={() => setDetail(null)} title={`Purchase Order ${detail?.poNumber || ''}`} width="max-w-2xl">
         {detail && (
           <div className="po-document flex flex-col gap-4">
             {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}

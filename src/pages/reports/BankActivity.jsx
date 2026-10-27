@@ -58,8 +58,28 @@ export default function BankActivity() {
 
   const bankNames = bankAccounts.filter((b) => bankIds.includes(b._id)).map((b) => b.name).join(', ');
   const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${bankNames ? ` — ${bankNames}` : ''}`;
-  const exportPdf = () => downloadReportPdf({ title: 'Bank Activity', subtitle, columns: exportColumns, rows });
-  const exportExcel = () => downloadReportExcel({ title: 'Bank Activity', subtitle, columns: exportColumns, rows });
+  // Amounts are unsigned, so deposits, withdrawals and transfers are totalled separately.
+  const sumType = (type) => (rows || []).filter((r) => r.type === type).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const deposits = sumType('DEPOSIT');
+  const withdrawals = sumType('WITHDRAWAL');
+  const transfers = sumType('TRANSFER');
+  const totalRow = (label, value) => ['', '', '', '', '', '', label, formatMoney(value)];
+  const footer = [
+    totalRow('Total Deposits', deposits),
+    totalRow('Total Withdrawals', withdrawals),
+    ...(transfers ? [totalRow('Total Transfers', transfers)] : []),
+    totalRow('Net (Deposits − Withdrawals)', deposits - withdrawals)
+  ];
+  // Exports take a single totals row, so the per-type totals go in as bold rows above the net.
+  const exportRows = () => [
+    ...(rows || []),
+    { _bold: true, contraDetails: 'Total Deposits', amount: deposits },
+    { _bold: true, contraDetails: 'Total Withdrawals', amount: withdrawals },
+    ...(transfers ? [{ _bold: true, contraDetails: 'Total Transfers', amount: transfers }] : [])
+  ];
+  const exportTotals = footer[footer.length - 1];
+  const exportPdf = () => downloadReportPdf({ title: 'Bank Activity', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals });
+  const exportExcel = () => downloadReportExcel({ title: 'Bank Activity', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals });
 
   return (
     <PageLayout title="Bank Activity" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -86,7 +106,7 @@ export default function BankActivity() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view bank activity.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} emptyMessage="No bank activity found." />}
+      {rows && <DataTable columns={columns} data={rows} emptyMessage="No bank activity found." footer={footer} />}
     </PageLayout>
   );
 }

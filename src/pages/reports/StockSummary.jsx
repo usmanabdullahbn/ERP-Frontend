@@ -4,25 +4,51 @@ import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
+import { formatMoney, formatDate, todayLocalISODate, formatAltQty } from '../../components/ui';
 
 const columns = [
   { key: 'sku', label: 'SKU' },
   { key: 'name', label: 'Product' },
-  { key: 'totalQuantity', label: 'Qty', align: 'right', mono: true },
-  { key: 'stockValue', label: 'Stock Value', align: 'right', mono: true, render: (r) => formatMoney(r.stockValue) },
-  { key: 'reorderLevel', label: 'Reorder Level', align: 'right', mono: true },
-  { key: 'status', label: 'Status', render: (r) => r.belowReorder ? <span className="text-ledger-rose text-xs font-medium">Reorder needed</span> : <span className="text-ledger-teal text-xs">OK</span> }
+  { key: 'totalQuantity', label: 'Qty', align: 'right', mono: true, render: (r) => `${r.totalQuantity} ${r.unit || ''}` },
+  { key: 'altQuantity', label: 'Qty (Alt Unit)', align: 'right', mono: true, render: (r) => formatAltQty(r.totalQuantity, r) || '—' },
+  { key: 'stockValue', label: 'Stock Value', align: 'right', mono: true, render: (r) => formatMoney(r.stockValue) }
 ];
 
 const exportColumns = [
   { key: 'sku', label: 'SKU' },
   { key: 'name', label: 'Product' },
   { key: 'totalQuantity', label: 'Qty', align: 'right' },
-  { key: 'stockValue', label: 'Stock Value', align: 'right', money: true },
-  { key: 'reorderLevel', label: 'Reorder Level', align: 'right' },
-  { key: 'status', label: 'Status' }
+  { key: 'unit', label: 'Unit' },
+  { key: 'altQuantity', label: 'Qty (Alt Unit)', align: 'right' },
+  { key: 'stockValue', label: 'Stock Value', align: 'right', money: true }
 ];
+
+// "21,560 ft" — summed per unit so mixed units (ft, pcs…) are never added together.
+function sumByUnit(rows) {
+  const totals = {};
+  rows.forEach((r) => { totals[r.unit || ''] = (totals[r.unit || ''] || 0) + Number(r.totalQuantity || 0); });
+  return Object.entries(totals).map(([unit, qty]) => `${Math.round(qty * 100) / 100} ${unit}`.trim()).join(' · ');
+}
+
+// Whole alt units summed per alt unit, with the loose base-unit remainders kept separate.
+function sumAltUnits(rows) {
+  const whole = {};
+  const rest = {};
+  rows.forEach((r) => {
+    const factor = Number(r.altUnitFactor || 0);
+    if (!r.altUnit || factor <= 0) return;
+    const qty = Number(r.totalQuantity || 0);
+    const w = Math.trunc(qty / factor + (qty < 0 ? -1e-9 : 1e-9));
+    whole[r.altUnit] = (whole[r.altUnit] || 0) + w;
+    rest[r.unit || ''] = (rest[r.unit || ''] || 0) + (qty - w * factor);
+  });
+  const parts = Object.entries(whole).map(([u, n]) => `${n} ${u}`);
+  Object.entries(rest).forEach(([u, n]) => {
+    const v = Math.round(n * 100) / 100;
+    if (v !== 0) parts.push(`${v} ${u}`.trim());
+  });
+  return parts.join(' + ');
+}
 
 export default function StockSummary() {
   const [data, setData] = useState(null);
@@ -44,8 +70,11 @@ export default function StockSummary() {
 
   const visibleRows = data ? (excludeZero ? data.rows.filter((r) => r.totalQuantity !== 0) : data.rows) : [];
   const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}`;
-  const exportRows = () => visibleRows.map((r) => ({ ...r, status: r.belowReorder ? 'Reorder needed' : 'OK' }));
-  const exportTotals = () => ['', '', 'Total', formatMoney(data.totalStockValue), '', ''];
+  const exportRows = () => visibleRows.map((r) => ({ ...r, altQuantity: formatAltQty(r.totalQuantity, r) || '—' }));
+  const visibleValue = visibleRows.reduce((s, r) => s + Number(r.stockValue || 0), 0);
+  const footer = [[`Total (${visibleRows.length} items)`, '', sumByUnit(visibleRows), sumAltUnits(visibleRows) || '—', formatMoney(visibleValue)]];
+  // Export has separate Qty / Unit columns, so the combined "570 ft" text goes in Qty and Unit stays blank.
+  const exportTotals = () => [`Total (${visibleRows.length} items)`, '', sumByUnit(visibleRows), '', sumAltUnits(visibleRows), formatMoney(visibleValue)];
   const exportPdf = () => downloadReportPdf({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
   const exportExcel = () => downloadReportExcel({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
 
@@ -75,7 +104,7 @@ export default function StockSummary() {
             <span className="font-display text-ink-800">Total Stock Value</span>
             <span className="font-figures text-xl font-semibold">{money(data.totalStockValue)}</span>
           </div>
-          <DataTable columns={columns} data={visibleRows} />
+          <DataTable columns={columns} data={visibleRows} footer={footer} />
         </>
       )}
     </PageLayout>

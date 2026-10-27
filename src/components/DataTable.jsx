@@ -1,4 +1,8 @@
-export default function DataTable({ columns, data, onRowClick, emptyMessage = 'No records yet.' }) {
+/*
+  `footer` is optional: one array of cells per totals row, lined up with
+  `columns` (e.g. [['Total', '', '1,200.00']]). Hidden when there are no rows.
+*/
+export default function DataTable({ columns, data, onRowClick, emptyMessage = 'No records yet.', footer }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
       <table className="w-full text-sm">
@@ -33,6 +37,19 @@ export default function DataTable({ columns, data, onRowClick, emptyMessage = 'N
             </tr>
           ))}
         </tbody>
+        {footer && footer.length > 0 && data.length > 0 && (
+          <tfoot>
+            {footer.map((cells, i) => (
+              <tr key={i} className={`font-semibold ${i === 0 ? 'border-t-2 border-ink-800' : ''}`}>
+                {columns.map((col, j) => (
+                  <td key={col.key} className={`px-4 py-3 ${col.mono ? 'font-figures' : ''} ${col.align === 'right' ? 'text-right' : ''}`}>
+                    {cells[j] ?? ''}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tfoot>
+        )}
       </table>
     </div>
   );

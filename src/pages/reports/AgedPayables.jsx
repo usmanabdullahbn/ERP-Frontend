@@ -51,8 +51,10 @@ export default function AgedPayables() {
 
   const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
   const subtitle = `As on ${formatDate(asOf)}${supplierNames ? ` — ${supplierNames}` : ''}`;
-  const exportPdf = () => downloadReportPdf({ title: 'Aged Payables', subtitle, columns: exportColumns, rows });
-  const exportExcel = () => downloadReportExcel({ title: 'Aged Payables', subtitle, columns: exportColumns, rows });
+  const totalDue = (rows || []).reduce((s, r) => s + Number(r.balanceDue || 0), 0);
+  const totals = [`Total (${(rows || []).length} bills)`, '', '', '', '', formatMoney(totalDue)];
+  const exportPdf = () => downloadReportPdf({ title: 'Aged Payables', subtitle, columns: exportColumns, rows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Aged Payables', subtitle, columns: exportColumns, rows, totals });
 
   return (
     <PageLayout title="Aged Payables" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -77,7 +79,7 @@ export default function AgedPayables() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view aged payables.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} />}
+      {rows && <DataTable columns={columns} data={rows} footer={[totals]} />}
     </PageLayout>
   );
 }

@@ -25,6 +25,23 @@ export function todayLocalISODate() {
   return `${year}-${month}-${day}`;
 }
 
+/*
+  Express a base-unit quantity in the product's secondary unit, e.g.
+  575 ft with 1 length = 19 ft → "30 length + 5 ft". Returns '' when the
+  product has no secondary unit set.
+*/
+export function formatAltQty(qty, { unit, altUnit, altUnitFactor } = {}) {
+  const factor = Number(altUnitFactor || 0);
+  if (!altUnit || factor <= 0) return '';
+  const total = Number(qty || 0);
+  const abs = Math.abs(total);
+  const whole = Math.floor(abs / factor + 1e-9);
+  const rest = Math.round((abs - whole * factor) * 100) / 100;
+  let text = `${whole} ${altUnit}`;
+  if (rest > 0) text += ` + ${rest} ${unit || ''}`.trimEnd();
+  return total < 0 ? `-(${text})` : text;
+}
+
 function toLocalISODate(d) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');

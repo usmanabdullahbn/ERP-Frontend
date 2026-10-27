@@ -158,6 +158,17 @@ export default function ItemActivity() {
                     <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No movements in this period.</td></tr>
                   )}
                 </tbody>
+                {r.entries.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-ink-800 font-semibold">
+                      <td className="px-4 py-3" colSpan={4}>Total</td>
+                      <td className="px-4 py-3 text-right font-figures text-ledger-teal">{r.totalIn.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-figures text-ledger-rose">{r.totalOut.toLocaleString()}</td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3 text-right font-figures">{r.closingQty.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           ))}
