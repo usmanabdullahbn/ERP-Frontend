@@ -103,7 +103,7 @@ export default function StockAdjustments() {
             <span className="block text-xs font-medium text-slate-600 mb-1">Product</span>
             <select value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} className="input">
               <option value="">Select…</option>
-              {products.filter((p) => p.type === 'STOCK').map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+              {products.filter((p) => p.type === 'STOCK' && p.isActive !== false).map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
             </select>
           </label>
           <label className="block">

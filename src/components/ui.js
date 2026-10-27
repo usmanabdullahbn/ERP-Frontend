@@ -42,6 +42,15 @@ export function formatAltQty(qty, { unit, altUnit, altUnitFactor } = {}) {
   return total < 0 ? `-(${text})` : text;
 }
 
+/*
+  Options for a document form's dropdown: active records only, plus the
+  one already chosen so editing an old document still shows its party/product.
+  (Report filters keep inactive records — their history still matters.)
+*/
+export function activeOrSelected(list, ...selectedIds) {
+  return list.filter((item) => item.isActive !== false || selectedIds.includes(item._id));
+}
+
 function toLocalISODate(d) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');

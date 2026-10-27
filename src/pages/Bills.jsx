@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
 
 let lineKeySeq = 0;
 // Product, Warehouse, Qty, Cost, Disc %, Disc Amt, Total, delete
@@ -430,7 +430,7 @@ export default function Bills({ mode }) {
               <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
               <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
                 <option value="">Select…</option>
-                {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+                {activeOrSelected(suppliers, supplier).map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
             </label>
             <label className="block">

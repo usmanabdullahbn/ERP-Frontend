@@ -7,7 +7,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 const idOf = (ref) => (ref && typeof ref === 'object' ? ref._id : ref);
@@ -281,7 +281,7 @@ export default function Payments({ mode }) {
                   {field('Supplier', (
                     <select required value={supplier} onChange={(e) => { setSupplier(e.target.value); setAllocations({}); setDiscounts({}); setAllocationsTouched(false); }} className="input">
                       <option value="">Select supplier…</option>
-                      {suppliers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                      {activeOrSelected(suppliers, supplier).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   ), supplier ? `Outstanding: ${money(outstanding)} across ${openBills.length} bill(s)` : null)}
                   {field('Date', <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />)}

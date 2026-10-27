@@ -87,6 +87,24 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Roles/permissions saved at login go stale when an admin changes them, so
+  // re-read them from the server on load and whenever the tab regains focus.
+  useEffect(() => {
+    const refresh = () => {
+      if (!localStorage.getItem('erp_token')) return;
+      api.get('/auth/me')
+        .then(({ data }) => {
+          const fresh = normalizeUser(data);
+          localStorage.setItem('erp_user', JSON.stringify(fresh));
+          setUser(fresh);
+        })
+        .catch(() => {}); // a 401 is already handled by the API client
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
+
   const login = useCallback(async (email, password) => {
     setLoading(true);
     try {

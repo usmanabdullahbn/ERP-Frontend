@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
 
 let lineKeySeq = 0;
 // Product, Warehouse, Qty, Price, Disc %, Disc Amt, Total, delete
@@ -451,7 +451,7 @@ export default function Invoices({ mode }) {
                 if (nextCustomer) applyCustomerDiscount(nextCustomer);
               }} className="input">
                 <option value="">Select…</option>
-                {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {activeOrSelected(customers, customer).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </label>
             <label className="block">

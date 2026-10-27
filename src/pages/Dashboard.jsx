@@ -5,8 +5,13 @@ import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import StatCard from '../components/StatCard';
 import { formatMoney } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
+  const { user, hasPermission } = useAuth();
+  // The summary API needs reports.view; everyone else lands here too, so
+  // they get a welcome instead of an error.
+  const canSeeFigures = hasPermission('reports.view');
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   // Figures start hidden on every visit; deliberately not persisted, so a
@@ -14,10 +19,11 @@ export default function Dashboard() {
   const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
+    if (!canSeeFigures) return;
     api.get('/dashboard/summary')
       .then((res) => setData(res.data))
       .catch((err) => setError(err.response?.data?.message || 'Could not load dashboard.'));
-  }, []);
+  }, [canSeeFigures]);
 
   // No currency symbol, matching every other page in the app — see formatMoney.
   const money = formatMoney;
@@ -33,6 +39,13 @@ export default function Dashboard() {
       )}
     >
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
+
+      {!canSeeFigures && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-card p-8 text-center">
+          <p className="font-display text-lg text-ink-800 mb-1">Welcome{user?.name ? `, ${user.name}` : ''}</p>
+          <p className="text-sm text-slate-500">Use the menu on the left to get started. Business figures are shown here to users with report access.</p>
+        </div>
+      )}
 
       {data && (
         <>

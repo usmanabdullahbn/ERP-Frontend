@@ -91,7 +91,7 @@ export default function StockSummary() {
           Exclude zero
         </label>
         <button onClick={run} disabled={loading} className="btn-primary disabled:opacity-60">{loading ? 'Running…' : 'Run Report'}</button>
-        {asOf && <span className="text-xs text-slate-400 pb-2">Showing stock as it stood on {asOf}. Stock value uses average purchase cost (after discount).</span>}
+        {asOf && <span className="text-xs text-slate-400 pb-2">Showing stock as it stood on {asOf}. Stock value uses each product's current average cost.</span>}
       </div>
 
       {!data && !loading && (

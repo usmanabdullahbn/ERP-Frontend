@@ -6,12 +6,14 @@ import { ChevronDown } from 'lucide-react';
   SKU ("TP-609") or part of a name, then pick with the mouse or ↑/↓ + Enter.
   Exact and leading SKU matches are listed first.
 */
-export default function ProductPicker({ products, value, onChange, placeholder = 'Search SKU or name…', className = '' }) {
+export default function ProductPicker({ products: allProducts, value, onChange, placeholder = 'Search SKU or name…', className = '' }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listRef = useRef(null);
 
+  // Inactive products aren't offered, except the one already on this line.
+  const products = allProducts.filter((p) => p.isActive !== false || p._id === value);
   const selected = products.find((p) => p._id === value);
   const label = (p) => (p.sku ? `${p.sku} — ${p.name}` : p.name);
 

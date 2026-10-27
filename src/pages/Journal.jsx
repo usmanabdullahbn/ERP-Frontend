@@ -9,7 +9,7 @@ import FilterBar, { matchesSearch, toLocalISODate } from '../components/FilterBa
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
 
-const SOURCE_TYPES = ['INVOICE', 'RECEIPT', 'BILL', 'PAYMENT', 'BANK_TRANSFER', 'MANUAL', 'OPENING_BALANCE'];
+const SOURCE_TYPES = ['INVOICE', 'RECEIPT', 'BILL', 'PAYMENT', 'BANK_TRANSFER', 'MANUAL', 'OPENING_BALANCE', 'OPENING_STOCK', 'STOCK_ADJUSTMENT'];
 
 export default function Journal() {
   const { isAdmin } = useAuth();

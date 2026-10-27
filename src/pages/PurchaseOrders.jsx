@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
 
 let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitCost: 0, taxRate: 0, discountRate: 0 });
@@ -19,7 +19,7 @@ const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', w
   and /purchase-orders/:id/edit (mode "new" / "edit") show the form as a full page.
 */
 export default function PurchaseOrders({ mode }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
   const canManage = hasPermission('purchases.manage');
   const { id } = useParams();
   const navigate = useNavigate();
@@ -194,7 +194,7 @@ export default function PurchaseOrders({ mode }) {
       key: 'actions', label: '', align: 'right',
       render: (r) => (
         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          {r.status !== 'BILLED' && r.status !== 'CANCELLED' && (
+          {canManage && r.status !== 'BILLED' && r.status !== 'CANCELLED' && (
             <button type="button" onClick={() => openEdit(r)} className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300" title="Edit purchase order">
               <Pencil size={16} />
             </button>
@@ -204,7 +204,7 @@ export default function PurchaseOrders({ mode }) {
               <Trash2 size={16} />
             </button>
           )}
-          {canManage && r.status !== 'BILLED' && r.status !== 'CANCELLED' && (
+          {isAdmin && r.status !== 'BILLED' && r.status !== 'CANCELLED' && (
             <button type="button" onClick={() => handleConvertToBill(r._id)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100" title="Create bill from purchase order">
               <ArrowRight size={14} /> Convert to bill
             </button>
@@ -245,7 +245,7 @@ export default function PurchaseOrders({ mode }) {
               <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
               <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
                 <option value="">Select…</option>
-                {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+                {activeOrSelected(suppliers, supplier).map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
             </label>
             <label className="block">
@@ -324,7 +324,7 @@ export default function PurchaseOrders({ mode }) {
                 <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2">
                   <Printer size={16} /> Print
                 </button>
-                {detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
+                {canManage && detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
                   <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2">
                     <Pencil size={16} /> Edit
                   </button>
@@ -396,7 +396,7 @@ export default function PurchaseOrders({ mode }) {
               </div>
             </div>
 
-            {canManage && detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
+            {isAdmin && detail.status !== 'BILLED' && detail.status !== 'CANCELLED' && (
               <div className="print:hidden flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button type="button" onClick={() => handleConvertToBill(detail._id)} className="btn-teal inline-flex items-center gap-2">
                   <ArrowRight size={16} /> Convert to bill

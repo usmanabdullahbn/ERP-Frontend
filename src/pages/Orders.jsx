@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
 
 let lineKeySeq = 0;
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitPrice: 0, taxRate: 0, discountRate: 0 });
@@ -19,7 +19,7 @@ const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', w
   /orders/:id/edit (mode "new" / "edit") show the form as a full page.
 */
 export default function Orders({ mode }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
   const canManage = hasPermission('sales.manage');
   const { id } = useParams();
   const navigate = useNavigate();
@@ -195,7 +195,7 @@ export default function Orders({ mode }) {
       key: 'actions', label: '', align: 'right',
       render: (r) => (
         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-          {r.status !== 'INVOICED' && r.status !== 'CANCELLED' && (
+          {canManage && r.status !== 'INVOICED' && r.status !== 'CANCELLED' && (
             <button type="button" onClick={() => openEdit(r)} className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 hover:text-ink-900 hover:border-slate-300" title="Edit order">
               <Pencil size={16} />
             </button>
@@ -205,7 +205,7 @@ export default function Orders({ mode }) {
               <Trash2 size={16} />
             </button>
           )}
-          {canManage && r.status !== 'INVOICED' && r.status !== 'CANCELLED' && (
+          {isAdmin && r.status !== 'INVOICED' && r.status !== 'CANCELLED' && (
             <button type="button" onClick={() => handleConvertToInvoice(r._id)} className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100" title="Create invoice from order">
               <ArrowRight size={14} /> Convert to invoice
             </button>
@@ -246,7 +246,7 @@ export default function Orders({ mode }) {
               <span className="block text-xs font-medium text-slate-600 mb-1">Customer</span>
               <select value={customer} onChange={(e) => setCustomer(e.target.value)} className="input">
                 <option value="">Select…</option>
-                {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {activeOrSelected(customers, customer).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </label>
             <label className="block">
@@ -329,7 +329,7 @@ export default function Orders({ mode }) {
                 <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2">
                   <Printer size={16} /> Print
                 </button>
-                {detail.status !== 'INVOICED' && detail.status !== 'CANCELLED' && (
+                {canManage && detail.status !== 'INVOICED' && detail.status !== 'CANCELLED' && (
                   <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2">
                     <Pencil size={16} /> Edit
                   </button>
@@ -401,7 +401,7 @@ export default function Orders({ mode }) {
               </div>
             </div>
 
-            {canManage && detail.status !== 'INVOICED' && detail.status !== 'CANCELLED' && (
+            {isAdmin && detail.status !== 'INVOICED' && detail.status !== 'CANCELLED' && (
               <div className="print:hidden flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button type="button" onClick={() => handleConvertToInvoice(detail._id)} className="btn-teal inline-flex items-center gap-2">
                   <ArrowRight size={16} /> Convert to invoice
