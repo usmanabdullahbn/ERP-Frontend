@@ -4,6 +4,7 @@ import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
@@ -36,6 +37,8 @@ export default function BankActivity() {
   const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [bankIds, setBankIds] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -57,9 +60,15 @@ export default function BankActivity() {
   };
 
   const bankNames = bankAccounts.filter((b) => bankIds.includes(b._id)).map((b) => b.name).join(', ');
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${bankNames ? ` — ${bankNames}` : ''}`;
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${bankNames ? ` — ${bankNames}` : ''}${filterNote(search, ['Type', typeFilter])}`;
+  const visibleRows = (rows || []).filter((r) =>
+    matchesSearch(search, r.reference, r.jvNumber, r.description, r.contraDetails, r.bankAccount)
+    && (!typeFilter || r.type === typeFilter)
+  );
+  const hasFilters = Boolean(search || typeFilter);
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); };
   // Amounts are unsigned, so deposits, withdrawals and transfers are totalled separately.
-  const sumType = (type) => (rows || []).filter((r) => r.type === type).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const sumType = (type) => visibleRows.filter((r) => r.type === type).reduce((s, r) => s + Number(r.amount || 0), 0);
   const deposits = sumType('DEPOSIT');
   const withdrawals = sumType('WITHDRAWAL');
   const transfers = sumType('TRANSFER');
@@ -72,7 +81,7 @@ export default function BankActivity() {
   ];
   // Exports take a single totals row, so the per-type totals go in as bold rows above the net.
   const exportRows = () => [
-    ...(rows || []),
+    ...visibleRows,
     { _bold: true, contraDetails: 'Total Deposits', amount: deposits },
     { _bold: true, contraDetails: 'Total Withdrawals', amount: withdrawals },
     ...(transfers ? [{ _bold: true, contraDetails: 'Total Transfers', amount: transfers }] : [])
@@ -106,7 +115,17 @@ export default function BankActivity() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view bank activity.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} emptyMessage="No bank activity found." footer={footer} />}
+      {rows && (
+        <>
+          <FilterBar search={search} onSearch={setSearch} placeholder="Search reference, JV #, description, contra…" showClear={hasFilters} onClear={clearFilters}>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+              <option value="">All types</option>
+              {distinctValues(rows, 'type').map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </FilterBar>
+          <DataTable columns={columns} data={visibleRows} emptyMessage={hasFilters ? 'No transactions match your filters.' : 'No bank activity found.'} footer={footer} />
+        </>
+      )}
     </PageLayout>
   );
 }

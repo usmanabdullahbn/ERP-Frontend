@@ -8,6 +8,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
+import { printDocument, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel } from '../components/printDocument';
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 const idOf = (ref) => (ref && typeof ref === 'object' ? ref._id : ref);
@@ -218,6 +219,30 @@ export default function Receipts({ mode }) {
       setDetailError(message);
       setConfirmOpen(false);
     }
+  };
+
+  const handlePrint = () => {
+    const rows = (detail.allocations || []).map((a, i) => ({ n: i + 1, doc: a.invoice?.invoiceNumber || 'Unallocated', amount: a.amount, discount: a.discount || 0 }));
+    const discount = rows.reduce((s, r) => s + r.discount, 0);
+    printDocument({
+      title: 'Receipt',
+      number: detail.receiptNumber,
+      date: detail.date,
+      party: { label: 'Received from', ...partyOf(detail.customer) },
+      meta: [['Method', statusLabel(detail.method)], ['Deposited to', detail.bankAccount?.name || ''], ...(detail.reference ? [['Reference', detail.reference]] : [])],
+      columns: [
+        { label: '#', key: 'n' },
+        { label: 'Applied to invoice', key: 'doc' },
+        { label: 'Amount', key: 'amount', align: 'right', money: true },
+        { label: 'Discount', key: 'discount', align: 'right', money: true }
+      ],
+      rows,
+      totals: [
+        ...(discount > 0 ? [['Discount allowed', formatMoney(discount)]] : []),
+        ['Amount received', formatMoney(detail.amount), { strong: true }]
+      ],
+      notes: detail.notes
+    });
   };
 
   const money = formatMoney;
@@ -442,7 +467,7 @@ export default function Receipts({ mode }) {
                 <p className="font-medium">{detail.customer?.name}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2">
+                <button type="button" onClick={handlePrint} className="btn-ghost inline-flex items-center gap-2">
                   <Printer size={16} /> Print
                 </button>
                 <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2">

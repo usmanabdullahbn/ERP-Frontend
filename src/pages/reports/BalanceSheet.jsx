@@ -2,6 +2,7 @@ import { useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import FilterBar, { matchesSearch, filterNote } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
 
@@ -15,6 +16,8 @@ const columns = [
 export default function BalanceSheet() {
   const [data, setData] = useState(null);
   const [asOf, setAsOf] = useState(todayLocalISODate());
+  const [search, setSearch] = useState('');
+  const [hideZero, setHideZero] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,11 +32,14 @@ export default function BalanceSheet() {
       .finally(() => setLoading(false));
   };
 
-  const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}`;
+  const lineVisible = (r) => matchesSearch(search, r.code, r.name) && (!hideZero || Number(r.amount || 0) !== 0);
+  const hasFilters = Boolean(search || hideZero);
+  const clearFilters = () => { setSearch(''); setHideZero(false); };
+  const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}${filterNote(search, ['Balances', hideZero && 'Non-zero only'])}`;
   const exportRows = () => [
-    ...data.assets.map((r) => ({ ...r, section: 'Assets' })),
-    ...data.liabilities.map((r) => ({ ...r, section: 'Liabilities' })),
-    ...data.equity.map((r) => ({ ...r, section: 'Equity' }))
+    ...data.assets.filter(lineVisible).map((r) => ({ ...r, section: 'Assets' })),
+    ...data.liabilities.filter(lineVisible).map((r) => ({ ...r, section: 'Liabilities' })),
+    ...data.equity.filter(lineVisible).map((r) => ({ ...r, section: 'Equity' }))
   ];
   const exportTotals = () => ['', '', 'Total', formatMoney(data.totalAssets)];
   const exportPdf = () => downloadReportPdf({ title: 'Balance Sheet', subtitle, columns, rows: exportRows(), totals: exportTotals() });
@@ -55,21 +61,29 @@ export default function BalanceSheet() {
       )}
 
       {data && (
+        <>
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search account code or name…" showClear={hasFilters} onClear={clearFilters}>
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={hideZero} onChange={(e) => setHideZero(e.target.checked)} />
+            Hide zero balances
+          </label>
+        {hasFilters && <span className="text-xs text-slate-400">Totals below are for the full statement.</span>}
+        </FilterBar>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
             <h2 className="font-display text-sm text-ink-800 mb-3">Assets</h2>
-            {data.assets.map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
+            {data.assets.filter(lineVisible).map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
             <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Assets</span><span className="font-figures">{money(data.totalAssets)}</span></div>
           </div>
           <div className="flex flex-col gap-6">
             <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
               <h2 className="font-display text-sm text-ink-800 mb-3">Liabilities</h2>
-              {data.liabilities.map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
+              {data.liabilities.filter(lineVisible).map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
               <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Liabilities</span><span className="font-figures">{money(data.totalLiabilities)}</span></div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
               <h2 className="font-display text-sm text-ink-800 mb-3">Equity</h2>
-              {data.equity.map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
+              {data.equity.filter(lineVisible).map((r) => <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>)}
               <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Equity</span><span className="font-figures">{money(data.totalEquity)}</span></div>
             </div>
           </div>
@@ -78,6 +92,7 @@ export default function BalanceSheet() {
             <span className="text-white font-figures text-sm">Assets {money(data.totalAssets)} = Liabilities + Equity {money(data.totalLiabilities + data.totalEquity)}</span>
           </div>
         </div>
+        </>
       )}
     </PageLayout>
   );

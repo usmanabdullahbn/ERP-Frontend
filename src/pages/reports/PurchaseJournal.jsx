@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
@@ -37,6 +38,9 @@ export default function PurchaseJournal() {
   const [supplierIds, setSupplierIds] = useState([]);
   const [from, setFrom] = useState(firstOfMonthLocalISODate());
   const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -58,11 +62,20 @@ export default function PurchaseJournal() {
   };
 
   const money = formatMoney;
+  const visibleRows = (data?.rows || []).filter((r) =>
+    matchesSearch(search, r.reference, r.jvNumber, r.supplier, r.description)
+    && (!typeFilter || r.type === typeFilter)
+    && (!statusFilter || r.status === statusFilter)
+  );
+  const totalDebit = visibleRows.reduce((s, r) => s + Number(r.debit || 0), 0);
+  const totalCredit = visibleRows.reduce((s, r) => s + Number(r.credit || 0), 0);
+  const hasFilters = Boolean(search || typeFilter || statusFilter);
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); setStatusFilter(''); };
   const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}`;
-  const exportTotals = () => ['', '', '', '', '', 'Total', money(data.totalDebit), money(data.totalCredit)];
-  const exportPdf = () => downloadReportPdf({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: data.rows, totals: exportTotals() });
-  const exportExcel = () => downloadReportExcel({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: data.rows, totals: exportTotals() });
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}${filterNote(search, ['Type', typeFilter], ['Status', statusFilter])}`;
+  const exportTotals = () => [`Total (${visibleRows.length})`, '', '', '', '', '', '', money(totalDebit), money(totalCredit)];
+  const exportPdf = () => downloadReportPdf({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: visibleRows, totals: exportTotals() });
+  const exportExcel = () => downloadReportExcel({ title: 'Purchase Journal', subtitle, columns: exportColumns, rows: visibleRows, totals: exportTotals() });
 
   return (
     <PageLayout title="Purchase Journal" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -90,6 +103,17 @@ export default function PurchaseJournal() {
       )}
 
       {data && (
+        <>
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search reference, JV #, supplier, description…" showClear={hasFilters} onClear={clearFilters}>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+            <option value="">All types</option>
+            {distinctValues(data.rows, 'type').map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input w-auto">
+            <option value="">All statuses</option>
+            {distinctValues(data.rows, 'status').map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </FilterBar>
         <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto mb-4">
           <table className="w-full text-sm">
             <thead>
@@ -102,7 +126,10 @@ export default function PurchaseJournal() {
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row, i) => (
+              {visibleRows.length === 0 && (
+                <tr><td colSpan={columns.length} className="px-4 py-8 text-center text-slate-400">{hasFilters ? 'No entries match your filters.' : 'No entries in this period.'}</td></tr>
+              )}
+              {visibleRows.map((row, i) => (
                 <tr key={row._id || i} className="border-b border-slate-100">
                   {columns.map((col) => (
                     <td key={col.key} className={`px-4 py-3 ${col.mono ? 'font-figures' : ''} ${col.align === 'right' ? 'text-right' : ''}`}>
@@ -114,13 +141,14 @@ export default function PurchaseJournal() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-ink-800 font-semibold">
-                <td className="px-4 py-3" colSpan={6}>Total</td>
-                <td className="px-4 py-3 text-right font-figures">{money(data.totalDebit)}</td>
-                <td className="px-4 py-3 text-right font-figures">{money(data.totalCredit)}</td>
+                <td className="px-4 py-3" colSpan={columns.length - 2}>Total ({visibleRows.length} entries)</td>
+                <td className="px-4 py-3 text-right font-figures">{money(totalDebit)}</td>
+                <td className="px-4 py-3 text-right font-figures">{money(totalCredit)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
+        </>
       )}
     </PageLayout>
   );

@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, todayLocalISODate, formatAltQty } from '../../components/ui';
 
 const columns = [
   { key: 'sku', label: 'SKU' },
   { key: 'name', label: 'Product' },
+  { key: 'category', label: 'Category', render: (r) => r.category || '—' },
   { key: 'totalQuantity', label: 'Qty', align: 'right', mono: true, render: (r) => `${r.totalQuantity} ${r.unit || ''}` },
   { key: 'altQuantity', label: 'Qty (Alt Unit)', align: 'right', mono: true, render: (r) => formatAltQty(r.totalQuantity, r) || '—' },
   { key: 'stockValue', label: 'Stock Value', align: 'right', mono: true, render: (r) => formatMoney(r.stockValue) }
@@ -17,6 +19,7 @@ const columns = [
 const exportColumns = [
   { key: 'sku', label: 'SKU' },
   { key: 'name', label: 'Product' },
+  { key: 'category', label: 'Category' },
   { key: 'totalQuantity', label: 'Qty', align: 'right' },
   { key: 'unit', label: 'Unit' },
   { key: 'altQuantity', label: 'Qty (Alt Unit)', align: 'right' },
@@ -53,9 +56,18 @@ function sumAltUnits(rows) {
 export default function StockSummary() {
   const [data, setData] = useState(null);
   const [asOf, setAsOf] = useState(todayLocalISODate());
+  const [warehouses, setWarehouses] = useState([]);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [stockLevel, setStockLevel] = useState('');
   const [excludeZero, setExcludeZero] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/warehouses').then((res) => setWarehouses(res.data)).catch(() => setError('Could not load warehouses.'));
+  }, []);
 
   const run = () => {
     setLoading(true);
@@ -68,13 +80,35 @@ export default function StockSummary() {
       .finally(() => setLoading(false));
   };
 
-  const visibleRows = data ? (excludeZero ? data.rows.filter((r) => r.totalQuantity !== 0) : data.rows) : [];
-  const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}`;
+  // With a warehouse picked, each row shows only that warehouse's quantity and value.
+  const scopedRows = (data ? data.rows : []).map((r) => {
+    if (!warehouseId) return r;
+    const qty = Math.round((r.byWarehouse || []).filter((w) => w.warehouseId === warehouseId).reduce((s, w) => s + Number(w.quantity || 0), 0) * 100) / 100;
+    return { ...r, totalQuantity: qty, stockValue: Math.round(qty * Number(r.unitCost || 0) * 100) / 100 };
+  });
+  const levelMatches = (q) => {
+    if (excludeZero && q === 0) return false;
+    if (stockLevel === 'IN') return q > 0;
+    if (stockLevel === 'ZERO') return q === 0;
+    if (stockLevel === 'NEGATIVE') return q < 0;
+    return true;
+  };
+  const visibleRows = scopedRows.filter((r) =>
+    matchesSearch(search, r.sku, r.name, r.category)
+    && (!category || r.category === category)
+    && levelMatches(Number(r.totalQuantity || 0))
+  );
+  const categories = distinctValues(data?.rows, 'category');
+  const hasFilters = Boolean(search || category || warehouseId || stockLevel);
+  const clearFilters = () => { setSearch(''); setCategory(''); setWarehouseId(''); setStockLevel(''); };
+  const warehouseName = warehouses.find((w) => w._id === warehouseId)?.name;
+  const levelLabel = { IN: 'In stock', ZERO: 'Zero stock', NEGATIVE: 'Negative' }[stockLevel];
+  const subtitle = `As of ${formatDate(asOf || todayLocalISODate())}${filterNote(search, ['Stock', excludeZero && 'Exclude zero'], ['Category', category], ['Warehouse', warehouseName], ['Stock', levelLabel])}`;
   const exportRows = () => visibleRows.map((r) => ({ ...r, altQuantity: formatAltQty(r.totalQuantity, r) || '—' }));
   const visibleValue = visibleRows.reduce((s, r) => s + Number(r.stockValue || 0), 0);
-  const footer = [[`Total (${visibleRows.length} items)`, '', sumByUnit(visibleRows), sumAltUnits(visibleRows) || '—', formatMoney(visibleValue)]];
+  const footer = [[`Total (${visibleRows.length} items)`, '', '', sumByUnit(visibleRows), sumAltUnits(visibleRows) || '—', formatMoney(visibleValue)]];
   // Export has separate Qty / Unit columns, so the combined "570 ft" text goes in Qty and Unit stays blank.
-  const exportTotals = () => [`Total (${visibleRows.length} items)`, '', sumByUnit(visibleRows), '', sumAltUnits(visibleRows), formatMoney(visibleValue)];
+  const exportTotals = () => [`Total (${visibleRows.length} items)`, '', '', sumByUnit(visibleRows), '', sumAltUnits(visibleRows), formatMoney(visibleValue)];
   const exportPdf = () => downloadReportPdf({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
   const exportExcel = () => downloadReportExcel({ title: 'Stock Summary', subtitle, columns: exportColumns, rows: exportRows(), totals: exportTotals() });
 
@@ -101,10 +135,28 @@ export default function StockSummary() {
       {data && (
         <>
           <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-card p-5 flex justify-between items-center">
-            <span className="font-display text-ink-800">Total Stock Value</span>
-            <span className="font-figures text-xl font-semibold">{money(data.totalStockValue)}</span>
+            <span className="font-display text-ink-800">Total Stock Value{hasFilters && <span className="ml-2 text-xs text-slate-400">(filtered — {visibleRows.length} of {data.rows.length} items)</span>}</span>
+            <span className="font-figures text-xl font-semibold">{money(hasFilters ? visibleValue : data.totalStockValue)}</span>
           </div>
-          <DataTable columns={columns} data={visibleRows} footer={footer} />
+          <FilterBar search={search} onSearch={setSearch} placeholder="Search SKU, product, category…" showClear={hasFilters} onClear={clearFilters}>
+            {categories.length > 0 && (
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="input w-auto">
+                <option value="">All categories</option>
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className="input w-auto">
+              <option value="">All warehouses</option>
+              {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+            </select>
+            <select value={stockLevel} onChange={(e) => setStockLevel(e.target.value)} className="input w-auto">
+              <option value="">All stock levels</option>
+              <option value="IN">In stock (&gt; 0)</option>
+              <option value="ZERO">Zero stock</option>
+              <option value="NEGATIVE">Negative stock</option>
+            </select>
+          </FilterBar>
+          <DataTable columns={columns} data={visibleRows} footer={footer} emptyMessage={hasFilters ? 'No products match your filters.' : 'No stock items.'} />
         </>
       )}
     </PageLayout>

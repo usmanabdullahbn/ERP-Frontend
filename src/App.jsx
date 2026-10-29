@@ -63,6 +63,7 @@ export default function App() {
         <Route path="/customers" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Customers /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders /></ProtectedRoute>} />
         <Route path="/orders/new" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders mode="new" /></ProtectedRoute>} />
+        <Route path="/orders/:id" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders /></ProtectedRoute>} />
         <Route path="/orders/:id/edit" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Orders mode="edit" /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices /></ProtectedRoute>} />
         <Route path="/invoices/new" element={<ProtectedRoute permission={['sales.view', 'sales.manage']}><Invoices mode="new" /></ProtectedRoute>} />
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/suppliers" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Suppliers /></ProtectedRoute>} />
         <Route path="/purchase-orders" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders /></ProtectedRoute>} />
         <Route path="/purchase-orders/new" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders mode="new" /></ProtectedRoute>} />
+        <Route path="/purchase-orders/:id" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders /></ProtectedRoute>} />
         <Route path="/purchase-orders/:id/edit" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><PurchaseOrders mode="edit" /></ProtectedRoute>} />
         <Route path="/bills" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills /></ProtectedRoute>} />
         <Route path="/bills/new" element={<ProtectedRoute permission={['purchases.view', 'purchases.manage']}><Bills mode="new" /></ProtectedRoute>} />

@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
@@ -26,6 +27,8 @@ export default function ItemActivity() {
   const [warehouseId, setWarehouseId] = useState('');
   const [from, setFrom] = useState(firstOfMonthLocalISODate());
   const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -54,23 +57,43 @@ export default function ItemActivity() {
 
   const qty = (n) => (n ? Number(n).toLocaleString() : '');
 
-  const warehouseName = warehouses.find((w) => w._id === warehouseId)?.name;
-  const subtitle = `${warehouseName || 'All warehouses'} — ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
+  // A search that matches the product keeps all its movements; otherwise it filters movements.
+  const entryFilter = Boolean(search || typeFilter);
+  const visibleItems = (rows || []).map((r) => {
+    const productHit = search && matchesSearch(search, r.product.sku, r.product.name);
+    const entries = r.entries.filter((e) =>
+      (productHit || matchesSearch(search, e.ref, e.type, e.warehouse, e.note))
+      && (!typeFilter || e.type === typeFilter)
+    );
+    return {
+      ...r,
+      entries,
+      shownIn: entries.reduce((sum, e) => sum + Number(e.inQty || 0), 0),
+      shownOut: entries.reduce((sum, e) => sum + Number(e.outQty || 0), 0)
+    };
+  }).filter((r) => !entryFilter || r.entries.length > 0);
+  const movementTypes = distinctValues((rows || []).flatMap((r) => r.entries), 'type');
+  const hasFilters = entryFilter;
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); };
+  const fmtQty = (n) => (Math.round(Number(n || 0) * 100) / 100).toLocaleString();
 
-  const exportSections = () => (rows || []).map((r) => ({
+  const warehouseName = warehouses.find((w) => w._id === warehouseId)?.name;
+  const subtitle = `${warehouseName || 'All warehouses'} — ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${filterNote(search, ['Type', typeFilter])}`;
+
+  const exportSections = () => visibleItems.map((r) => ({
     title: `${r.product.sku} - ${r.product.name}`,
     subtitle: `Opening ${r.openingQty}  ·  In ${r.totalIn}  ·  Out ${r.totalOut}  ·  Closing ${r.closingQty}`,
     rows: [
       { _bold: true, type: 'Opening balance', balance: r.openingQty },
       ...r.entries.map((e) => ({ ...e, inQty: e.inQty || '', outQty: e.outQty || '' }))
     ],
-    totals: ['Total', '', '', '', String(r.totalIn), String(r.totalOut), '', String(r.closingQty)]
+    totals: ['Total', '', '', '', fmtQty(r.shownIn), fmtQty(r.shownOut), '', String(r.closingQty)]
   }));
   const exportPdf = () => downloadReportPdf({ title: 'Item Activity', subtitle, columns: exportColumns, sections: exportSections() });
   const exportExcel = () => downloadReportExcel({ title: 'Item Activity', subtitle, columns: exportColumns, sections: exportSections() });
 
   return (
-    <PageLayout title="Item Activity" actions={rows && rows.length > 0 && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
+    <PageLayout title="Item Activity" actions={visibleItems.length > 0 && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
         <label className="block">
@@ -108,8 +131,21 @@ export default function ItemActivity() {
       )}
 
       {rows && rows.length > 0 && (
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search SKU, product, ref, warehouse…" showClear={hasFilters} onClear={clearFilters}>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+            <option value="">All movement types</option>
+            {movementTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </FilterBar>
+      )}
+
+      {rows && rows.length > 0 && visibleItems.length === 0 && (
+        <div className="text-center py-12 text-slate-400">No movements match your filters.</div>
+      )}
+
+      {visibleItems.length > 0 && (
         <div className="space-y-6">
-          {rows.map((r) => (
+          {visibleItems.map((r) => (
             <div key={r.product._id} className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-4">
                 <div>
@@ -162,8 +198,8 @@ export default function ItemActivity() {
                   <tfoot>
                     <tr className="border-t-2 border-ink-800 font-semibold">
                       <td className="px-4 py-3" colSpan={4}>Total</td>
-                      <td className="px-4 py-3 text-right font-figures text-ledger-teal">{r.totalIn.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-figures text-ledger-rose">{r.totalOut.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-figures text-ledger-teal">{fmtQty(r.shownIn)}</td>
+                      <td className="px-4 py-3 text-right font-figures text-ledger-rose">{fmtQty(r.shownOut)}</td>
                       <td className="px-4 py-3"></td>
                       <td className="px-4 py-3 text-right font-figures">{r.closingQty.toLocaleString()}</td>
                     </tr>

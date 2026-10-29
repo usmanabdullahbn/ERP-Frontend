@@ -4,8 +4,9 @@ import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote, toLocalISODate } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
-import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
+import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate, todayLocalISODate } from '../../components/ui';
 
 const columns = [
   { key: 'poNumber', label: 'PO #' },
@@ -37,6 +38,9 @@ export default function PendingPurchaseOrders() {
   const [supplierIds, setSupplierIds] = useState([]);
   const [from, setFrom] = useState(firstOfMonthLocalISODate());
   const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -58,11 +62,19 @@ export default function PendingPurchaseOrders() {
   };
 
   const supplierNames = suppliers.filter((s) => supplierIds.includes(s._id)).map((s) => s.name).join(', ');
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}`;
-  const sum = (key) => (rows || []).reduce((s, r) => s + Number(r[key] || 0), 0);
-  const totals = [`Total (${(rows || []).length} POs)`, '', '', '', '', '', formatMoney(sum('grandTotal')), formatMoney(sum('amountBilled')), formatMoney(sum('balanceDue'))];
-  const exportPdf = () => downloadReportPdf({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows, totals });
-  const exportExcel = () => downloadReportExcel({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows, totals });
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${supplierNames ? ` — ${supplierNames}` : ''}${filterNote(search, ['Status', statusFilter], ['Due', overdueOnly && 'Overdue only'])}`;
+  const today = todayLocalISODate();
+  const visibleRows = (rows || []).filter((r) =>
+    matchesSearch(search, r.poNumber, r.supplier, r.supplierCode)
+    && (!statusFilter || r.status === statusFilter)
+    && (!overdueOnly || (r.dueDate && toLocalISODate(r.dueDate) < today))
+  );
+  const hasFilters = Boolean(search || statusFilter || overdueOnly);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setOverdueOnly(false); };
+  const sum = (key) => visibleRows.reduce((s, r) => s + Number(r[key] || 0), 0);
+  const totals = [`Total (${visibleRows.length} POs)`, '', '', '', '', '', formatMoney(sum('grandTotal')), formatMoney(sum('amountBilled')), formatMoney(sum('balanceDue'))];
+  const exportPdf = () => downloadReportPdf({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows: visibleRows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Pending Purchase Orders', subtitle, columns: exportColumns, rows: visibleRows, totals });
 
   return (
     <PageLayout title="Pending Purchase Orders" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -89,7 +101,21 @@ export default function PendingPurchaseOrders() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view pending purchase orders.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} emptyMessage="No pending purchase orders found." footer={[totals]} />}
+      {rows && (
+        <>
+          <FilterBar search={search} onSearch={setSearch} placeholder="Search PO #, supplier, code…" showClear={hasFilters} onClear={clearFilters}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input w-auto">
+              <option value="">All statuses</option>
+              {distinctValues(rows, 'status').map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} />
+              Overdue only
+            </label>
+          </FilterBar>
+          <DataTable columns={columns} data={visibleRows} emptyMessage={hasFilters ? 'Nothing matches your filters.' : 'No pending purchase orders found.'} footer={[totals]} />
+        </>
+      )}
     </PageLayout>
   );
 }

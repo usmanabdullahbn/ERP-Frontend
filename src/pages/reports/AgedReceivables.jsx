@@ -4,6 +4,7 @@ import PageLayout from '../../components/PageLayout';
 import DataTable from '../../components/DataTable';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, todayLocalISODate } from '../../components/ui';
 
@@ -30,6 +31,8 @@ export default function AgedReceivables() {
   const [customers, setCustomers] = useState([]);
   const [customerIds, setCustomerIds] = useState([]);
   const [asOf, setAsOf] = useState(todayLocalISODate());
+  const [search, setSearch] = useState('');
+  const [bucketFilter, setBucketFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -50,11 +53,17 @@ export default function AgedReceivables() {
   };
 
   const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
-  const subtitle = `As on ${formatDate(asOf)}${customerNames ? ` — ${customerNames}` : ''}`;
-  const totalDue = (rows || []).reduce((s, r) => s + Number(r.balanceDue || 0), 0);
-  const totals = [`Total (${(rows || []).length} invoices)`, '', '', '', '', formatMoney(totalDue)];
-  const exportPdf = () => downloadReportPdf({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows, totals });
-  const exportExcel = () => downloadReportExcel({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows, totals });
+  const subtitle = `As on ${formatDate(asOf)}${customerNames ? ` — ${customerNames}` : ''}${filterNote(search, ['Bucket', bucketFilter])}`;
+  const visibleRows = (rows || []).filter((r) =>
+    matchesSearch(search, r.invoiceNumber, r.customer)
+    && (!bucketFilter || r.bucket === bucketFilter)
+  );
+  const hasFilters = Boolean(search || bucketFilter);
+  const clearFilters = () => { setSearch(''); setBucketFilter(''); };
+  const totalDue = visibleRows.reduce((s, r) => s + Number(r.balanceDue || 0), 0);
+  const totals = [`Total (${visibleRows.length} invoices)`, '', '', '', '', formatMoney(totalDue)];
+  const exportPdf = () => downloadReportPdf({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows: visibleRows, totals });
+  const exportExcel = () => downloadReportExcel({ title: 'Aged Receivables', subtitle, columns: exportColumns, rows: visibleRows, totals });
 
   return (
     <PageLayout title="Aged Receivables" actions={rows && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
@@ -79,7 +88,17 @@ export default function AgedReceivables() {
         <div className="text-center py-12 text-slate-400">Select filters and click "Run Report" to view aged receivables.</div>
       )}
 
-      {rows && <DataTable columns={columns} data={rows} footer={[totals]} />}
+      {rows && (
+        <>
+          <FilterBar search={search} onSearch={setSearch} placeholder="Search customer, invoice #…" showClear={hasFilters} onClear={clearFilters}>
+            <select value={bucketFilter} onChange={(e) => setBucketFilter(e.target.value)} className="input w-auto">
+              <option value="">All ageing buckets</option>
+              {distinctValues(rows, 'bucket').map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </FilterBar>
+          <DataTable columns={columns} data={visibleRows} emptyMessage={hasFilters ? 'Nothing matches your filters.' : 'Nothing outstanding.'} footer={[totals]} />
+        </>
+      )}
     </PageLayout>
   );
 }

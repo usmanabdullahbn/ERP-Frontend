@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
@@ -25,6 +26,9 @@ export default function GeneralLedger() {
   const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [accountIds, setAccountIds] = useState([]);
   const [showBf, setShowBf] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [hideEmpty, setHideEmpty] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -49,9 +53,28 @@ export default function GeneralLedger() {
   };
 
   const money = formatMoney;
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
 
-  const exportSections = () => (data || []).map((ledger) => {
+  // A search that matches the account itself keeps all its entries; otherwise it filters entries.
+  const visibleLedgers = (data || []).map((ledger) => {
+    const accountHit = search && matchesSearch(search, ledger.account.code, ledger.account.name);
+    const entries = accountHit ? ledger.entries : ledger.entries.filter((e) => matchesSearch(search, e.reference, e.description, e.jvNumber));
+    return {
+      ...ledger,
+      entries,
+      totalDebit: entries.reduce((sum, e) => sum + Number(e.debit || 0), 0),
+      totalCredit: entries.reduce((sum, e) => sum + Number(e.credit || 0), 0)
+    };
+  }).filter((ledger) =>
+    (!typeFilter || ledger.account.type === typeFilter)
+    && (!search || ledger.entries.length > 0)
+    && (!hideEmpty || ledger.entries.length > 0)
+  );
+  const accountTypes = distinctValues((data || []).map((l) => l.account), 'type');
+  const hasFilters = Boolean(search || typeFilter || hideEmpty);
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); setHideEmpty(false); };
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${filterNote(search, ['Account type', typeFilter], ['Accounts', hideEmpty && 'With entries only'])}`;
+
+  const exportSections = () => visibleLedgers.map((ledger) => {
     const rows = [];
     if (showBf) rows.push({ _bold: true, description: 'Balance b/f', balance: ledger.openingBalance || 0 });
     ledger.entries.forEach((e) => rows.push({ date: e.date, jvNumber: e.jvNumber || '', reference: e.reference, description: e.description, debit: e.debit || '', credit: e.credit || '', balance: e.balance }));
@@ -96,8 +119,25 @@ export default function GeneralLedger() {
       )}
 
       {data && data.length > 0 && (
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search account, reference, description, JV #…" showClear={hasFilters} onClear={clearFilters}>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+            <option value="">All account types</option>
+            {accountTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+            Only accounts with entries
+          </label>
+        </FilterBar>
+      )}
+
+      {data && data.length > 0 && visibleLedgers.length === 0 && (
+        <div className="text-center py-12 text-slate-400">No accounts or entries match your filters.</div>
+      )}
+
+      {visibleLedgers.length > 0 && (
         <div className="space-y-6">
-          {data.map((ledger) => (
+          {visibleLedgers.map((ledger) => (
             <div key={ledger.account._id} className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
                 <h3 className="font-semibold text-slate-900">{ledger.account.code} - {ledger.account.name}</h3>

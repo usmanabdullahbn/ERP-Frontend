@@ -51,6 +51,23 @@ export function activeOrSelected(list, ...selectedIds) {
   return list.filter((item) => item.isActive !== false || selectedIds.includes(item._id));
 }
 
+// Suggestions for a document's Payment Terms field (free text is allowed too).
+export const PAYMENT_TERMS = ['Cash', 'Advance', 'Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
+
+/*
+  Due date implied by payment terms: "Net 30" → 30 days after the document
+  date, "Cash"/"Advance" → the same day. Returns null for terms it can't read.
+*/
+export function dueDateFromTerms(date, terms) {
+  if (!date) return null;
+  const t = String(terms || '').trim().toLowerCase();
+  const net = t.match(/^net\s*(\d+)/);
+  const days = net ? Number(net[1]) : (t === 'cash' || t === 'advance' ? 0 : null);
+  if (days === null) return null;
+  const [y, m, d] = date.split('-').map(Number);
+  return toLocalISODate(new Date(y, m - 1, d + days));
+}
+
 function toLocalISODate(d) {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');

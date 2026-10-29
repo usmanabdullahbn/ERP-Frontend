@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Pencil, Printer, Ban, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Pencil, Printer, Truck, Ban, ArrowLeft } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -8,7 +8,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms } from '../components/ui';
+import { printDocument, printGoodsNote, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel, docMeta } from '../components/printDocument';
 
 let lineKeySeq = 0;
 // Product, Warehouse, Qty, Cost, Disc %, Disc Amt, Total, delete
@@ -34,6 +35,8 @@ export default function Bills({ mode }) {
   const [supplier, setSupplier] = useState('');
   const [date, setDate] = useState(todayLocalISODate());
   const [dueDate, setDueDate] = useState('');
+  const [docRef, setDocRef] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
   const [lines, setLines] = useState([newLine()]);
   const [error, setError] = useState('');
   const [editingBill, setEditingBill] = useState(null);
@@ -125,7 +128,7 @@ export default function Bills({ mode }) {
 
   const resetForm = () => {
     setEditingBill(null);
-    setSupplier(''); setDate(todayLocalISODate()); setDueDate('');
+    setSupplier(''); setDate(todayLocalISODate()); setDueDate(''); setDocRef(''); setPaymentTerms('');
     setLines([newLine(defaultWarehouseId)]); setError('');
   };
 
@@ -140,6 +143,8 @@ export default function Bills({ mode }) {
         supplier,
         date,
         dueDate: dueDate || undefined,
+        docRef,
+        paymentTerms,
         items: validLines.map(({ _key, _discAmtText, ...rest }) => rest),
         notes: editingBill?.notes || '',
         postNow
@@ -171,6 +176,8 @@ export default function Bills({ mode }) {
     setSupplier(data.supplier?._id || '');
     setDate(data.date ? new Date(data.date).toISOString().slice(0, 10) : todayLocalISODate());
     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 10) : '');
+    setDocRef(data.docRef || '');
+    setPaymentTerms(data.paymentTerms || '');
     setLines(data.items.map((item) => ({
       _key: ++lineKeySeq,
       product: item.product?._id || item.product,
@@ -236,7 +243,33 @@ export default function Bills({ mode }) {
     }
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const lines = documentLines(detail.items, 'unitCost');
+    printDocument({
+      title: 'Purchase Bill',
+      number: detail.billNumber,
+      date: detail.date,
+      dueDate: detail.dueDate,
+      status: statusLabel(detail.status),
+      party: { label: 'Supplier', ...partyOf(detail.supplier) },
+      meta: docMeta(detail),
+      columns: LINE_COLUMNS('Cost'),
+      rows: lines,
+      totals: documentTotals(detail, lines, Number(detail.amountPaid || 0) > 0 ? [['Paid', formatMoney(detail.amountPaid)], ['Balance due', formatMoney(detail.grandTotal - detail.amountPaid), { strong: true }]] : []),
+      notes: detail.notes
+    });
+  };
+  // Goods-only copy (no prices) to send with the delivery / sign on receipt.
+  const handlePrintGoodsNote = () => printGoodsNote({
+    title: 'Goods Received Note',
+    number: detail.billNumber,
+    date: detail.date,
+    party: { label: 'Received from', ...partyOf(detail.supplier) },
+    meta: docMeta(detail),
+    items: detail.items,
+    notes: detail.notes,
+    signs: ['Received by', 'Checked by']
+  });
 
   const money = formatMoney;
 
@@ -288,6 +321,9 @@ export default function Bills({ mode }) {
     <>
       <button type="button" onClick={handlePrint} className="btn-ghost inline-flex items-center gap-2 print:hidden">
         <Printer size={16} /> Print
+      </button>
+      <button type="button" onClick={handlePrintGoodsNote} className="btn-ghost inline-flex items-center gap-2 print:hidden" title="Print without prices">
+        <Truck size={16} /> GRN
       </button>
       {isAdmin && detail.status !== 'POSTING' && (
         <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2 print:hidden">
@@ -344,6 +380,20 @@ export default function Bills({ mode }) {
                     <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
                   </div>
                 </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500 text-xs">Due Date</p>
+                    <p className="font-medium">{detail.dueDate ? new Date(detail.dueDate).toLocaleDateString() : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs">Doc #</p>
+                    <p className="font-medium">{detail.docRef || '—'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-500 text-xs">Payment Terms</p>
+                    <p className="font-medium">{detail.paymentTerms || '—'}</p>
+                  </div>
+                </div>
 
                 <div className="border-t border-slate-200 pt-3">
                   <p className="text-slate-500 text-xs">Supplier</p>
@@ -355,7 +405,8 @@ export default function Bills({ mode }) {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                      <th className="py-2 font-semibold">Item</th>
+                      <th className="py-2 font-semibold">SKU</th>
+                      <th className="font-semibold">Item</th>
                       <th className="font-semibold">Warehouse</th>
                       <th className="text-right font-semibold">Qty</th>
                       <th className="text-right font-semibold">Cost</th>
@@ -367,7 +418,8 @@ export default function Bills({ mode }) {
                   <tbody>
                     {detail.items.map((it, i) => (
                       <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
-                        <td className="py-2">{it.product?.name}</td>
+                        <td className="py-2 font-figures text-slate-600 whitespace-nowrap pr-3">{it.product?.sku}</td>
+                        <td>{it.product?.name}</td>
                         <td>{it.warehouse?.name}</td>
                         <td className="text-right font-figures">{it.quantity}</td>
                         <td className="text-right font-figures">{money(it.unitCost)}</td>
@@ -425,7 +477,7 @@ export default function Bills({ mode }) {
           </Link>
         <div className="bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
               <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
@@ -440,6 +492,26 @@ export default function Bills({ mode }) {
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Due Date</span>
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Doc #</span>
+              <input value={docRef} onChange={(e) => setDocRef(e.target.value)} placeholder="Reference no." className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Payment Terms</span>
+              <input
+                list="payment-terms"
+                value={paymentTerms}
+                onChange={(e) => {
+                  setPaymentTerms(e.target.value);
+                  // "Net 30", "Cash"… also set the due date from the document date.
+                  const due = dueDateFromTerms(date, e.target.value);
+                  if (due) setDueDate(due);
+                }}
+                placeholder="e.g. Net 30"
+                className="input"
+              />
+              <datalist id="payment-terms">{PAYMENT_TERMS.map((t) => <option key={t} value={t} />)}</datalist>
             </label>
           </div>
 

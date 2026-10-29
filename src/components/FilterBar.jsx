@@ -39,3 +39,16 @@ export function toLocalISODate(d) {
   const date = new Date(d);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+
+// Distinct non-empty values of `key` across rows, sorted — options for a report's filter dropdown.
+export function distinctValues(rows, key) {
+  return [...new Set((rows || []).map((r) => r[key]).filter((v) => v != null && v !== ''))].sort();
+}
+
+// " — Filtered: Search "abc" · Type: INVOICE" for an export subtitle; '' when nothing is filtered.
+export function filterNote(search, ...labelled) {
+  const parts = [];
+  if (search && search.trim()) parts.push(`Search "${search.trim()}"`);
+  labelled.forEach(([label, value]) => { if (value) parts.push(`${label}: ${value}`); });
+  return parts.length ? ` — Filtered: ${parts.join(' · ')}` : '';
+}

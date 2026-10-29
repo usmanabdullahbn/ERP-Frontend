@@ -3,6 +3,7 @@ import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
 import MultiSelect from '../../components/MultiSelect';
+import FilterBar, { matchesSearch, distinctValues, filterNote } from '../../components/FilterBar';
 import JvLink from '../../components/JvLink';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
@@ -25,6 +26,9 @@ export default function CustomerLedger() {
   const [from, setFrom] = useState(firstOfMonthLocalISODate());
   const [to, setTo] = useState(lastOfMonthLocalISODate());
   const [showBf, setShowBf] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [hideZero, setHideZero] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -51,10 +55,27 @@ export default function CustomerLedger() {
 
   const money = formatMoney;
 
-  const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
-  const subtitle = `${customerNames || 'All customers'} — ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
+  // A search that matches the customer itself keeps all its entries; otherwise it filters entries.
+  const entryFilter = Boolean(search || typeFilter);
+  const visibleLedgers = (rows || []).map((ledger) => {
+    const partyHit = search && matchesSearch(search, ledger.customer?.name, ledger.customer?.code);
+    const entries = ledger.entries.filter((e) =>
+      (partyHit || matchesSearch(search, e.ref, e.type, e.jvNumber))
+      && (!typeFilter || e.type === typeFilter)
+    );
+    return { ...ledger, entries };
+  }).filter((ledger) =>
+    (!hideZero || Math.abs(Number(ledger.closingBalance || 0)) >= 0.005)
+    && (!entryFilter || ledger.entries.length > 0)
+  );
+  const entryTypes = distinctValues((rows || []).flatMap((l) => l.entries), 'type');
+  const hasFilters = Boolean(search || typeFilter || hideZero);
+  const clearFilters = () => { setSearch(''); setTypeFilter(''); setHideZero(false); };
 
-  const exportSections = () => (rows || []).map((ledger) => {
+  const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
+  const subtitle = `${customerNames || 'All customers'} — ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${filterNote(search, ['Type', typeFilter], ['Balance', hideZero && 'Non-zero only'])}`;
+
+  const exportSections = () => visibleLedgers.map((ledger) => {
     const out = [];
     if (showBf) out.push({ _bold: true, type: 'Balance b/f', balance: ledger.openingBalance || 0 });
     let totalDebit = 0, totalCredit = 0;
@@ -110,8 +131,25 @@ export default function CustomerLedger() {
       )}
 
       {rows && rows.length > 0 && (
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search customer, ref, type, JV #…" showClear={hasFilters} onClear={clearFilters}>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input w-auto">
+            <option value="">All types</option>
+            {entryTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={hideZero} onChange={(e) => setHideZero(e.target.checked)} />
+            Hide zero balance
+          </label>
+        </FilterBar>
+      )}
+
+      {rows && rows.length > 0 && visibleLedgers.length === 0 && (
+        <div className="text-center py-12 text-slate-400">No entries match your filters.</div>
+      )}
+
+      {visibleLedgers.length > 0 && (
         <div className="space-y-6">
-          {rows.map((ledger) => {
+          {visibleLedgers.map((ledger) => {
             const bfRow = { _bf: true, type: 'Balance b/f', ref: '', balance: ledger.openingBalance || 0 };
             const entryRows = showBf ? [bfRow, ...ledger.entries] : ledger.entries;
             return (

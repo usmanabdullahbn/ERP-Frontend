@@ -2,6 +2,7 @@ import { useState } from 'react';
 import api from '../../api/client';
 import PageLayout from '../../components/PageLayout';
 import ReportExportButtons from '../../components/ReportExportButtons';
+import FilterBar, { matchesSearch, filterNote } from '../../components/FilterBar';
 import { downloadReportPdf, downloadReportExcel } from '../../components/reportExport';
 import { formatMoney, formatDate, firstOfMonthLocalISODate, lastOfMonthLocalISODate } from '../../components/ui';
 
@@ -16,6 +17,8 @@ export default function ProfitAndLoss() {
   const [data, setData] = useState(null);
   const [from, setFrom] = useState(firstOfMonthLocalISODate());
   const [to, setTo] = useState(lastOfMonthLocalISODate());
+  const [search, setSearch] = useState('');
+  const [hideZero, setHideZero] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -31,10 +34,13 @@ export default function ProfitAndLoss() {
       .finally(() => setLoading(false));
   };
 
-  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}`;
+  const lineVisible = (r) => matchesSearch(search, r.code, r.name) && (!hideZero || Number(r.amount || 0) !== 0);
+  const hasFilters = Boolean(search || hideZero);
+  const clearFilters = () => { setSearch(''); setHideZero(false); };
+  const subtitle = `Period: ${from ? formatDate(from) : 'inception'} to ${to ? formatDate(to) : 'today'}${filterNote(search, ['Balances', hideZero && 'Non-zero only'])}`;
   const exportRows = () => [
-    ...data.income.map((r) => ({ ...r, section: 'Income' })),
-    ...data.expense.map((r) => ({ ...r, section: 'Expense' }))
+    ...data.income.filter(lineVisible).map((r) => ({ ...r, section: 'Income' })),
+    ...data.expense.filter(lineVisible).map((r) => ({ ...r, section: 'Expense' }))
   ];
   const exportTotals = () => ['', '', 'Net Profit', formatMoney(data.netProfit)];
   const exportPdf = () => downloadReportPdf({ title: 'Profit & Loss', subtitle, columns, rows: exportRows(), totals: exportTotals() });
@@ -58,17 +64,25 @@ export default function ProfitAndLoss() {
       )}
 
       {data && (
+        <>
+        <FilterBar search={search} onSearch={setSearch} placeholder="Search account code or name…" showClear={hasFilters} onClear={clearFilters}>
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={hideZero} onChange={(e) => setHideZero(e.target.checked)} />
+            Hide zero balances
+          </label>
+        {hasFilters && <span className="text-xs text-slate-400">Totals below are for the full statement.</span>}
+        </FilterBar>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
             <h2 className="font-display text-sm text-ink-800 mb-3">Income</h2>
-            {data.income.map((r) => (
+            {data.income.filter(lineVisible).map((r) => (
               <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>
             ))}
             <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Income</span><span className="font-figures text-ledger-teal">{money(data.totalIncome)}</span></div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
             <h2 className="font-display text-sm text-ink-800 mb-3">Expenses</h2>
-            {data.expense.map((r) => (
+            {data.expense.filter(lineVisible).map((r) => (
               <div key={r.code} className="flex justify-between text-sm py-1"><span>{r.name}</span><span className="font-figures">{money(r.amount)}</span></div>
             ))}
             <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Expense</span><span className="font-figures text-ledger-rose">{money(data.totalExpense)}</span></div>
@@ -78,6 +92,7 @@ export default function ProfitAndLoss() {
             <span className={`font-figures text-xl font-semibold ${data.netProfit >= 0 ? 'text-ledger-teal' : 'text-ledger-rose'}`}>{money(data.netProfit)}</span>
           </div>
         </div>
+        </>
       )}
     </PageLayout>
   );
