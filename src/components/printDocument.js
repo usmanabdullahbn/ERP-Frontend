@@ -230,6 +230,7 @@ export function documentTotals(doc, lines, extra = []) {
     ...(discount > 0 ? [['Gross', formatMoney(gross)], ['Discount', `−${formatMoney(discount)}`]] : []),
     ['Subtotal', formatMoney(doc.subTotal)],
     ...(doc.taxTotal ? [['Tax', formatMoney(doc.taxTotal)]] : []),
+    ...(doc.roundOff ? [['Round off', formatMoney(doc.roundOff)]] : []),
     ['Total', formatMoney(doc.grandTotal), { strong: true }],
     ...extra
   ];

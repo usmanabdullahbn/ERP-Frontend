@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms, roundedTotal } from '../components/ui';
 import { printDocument, printGoodsNote, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel, docMeta } from '../components/printDocument';
 
 let lineKeySeq = 0;
@@ -41,6 +41,7 @@ export default function Orders({ mode }) {
   const [dueDate, setDueDate] = useState('');
   const [docRef, setDocRef] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
+  const [notes, setNotes] = useState('');
   const [lines, setLines] = useState([newLine()]);
   const [error, setError] = useState('');
   const [editingOrder, setEditingOrder] = useState(null);
@@ -141,6 +142,7 @@ export default function Orders({ mode }) {
     },
     { gross: 0, discount: 0, subTotal: 0, taxTotal: 0 }
   );
+  const rounded = roundedTotal(totals.subTotal, totals.taxTotal);
 
   const openCreate = () => navigate('/orders/new');
   const openEdit = (order) => navigate(`/orders/${order._id}/edit`);
@@ -148,7 +150,7 @@ export default function Orders({ mode }) {
 
   const resetForm = () => {
     setEditingOrder(null);
-    setCustomer(''); setDate(todayLocalISODate()); setDueDate(''); setDocRef(''); setPaymentTerms('');
+    setCustomer(''); setDate(todayLocalISODate()); setDueDate(''); setDocRef(''); setPaymentTerms(''); setNotes('');
     setLines([newLine(defaultWarehouseId)]); setError('');
   };
 
@@ -166,7 +168,7 @@ export default function Orders({ mode }) {
         docRef,
         paymentTerms,
         items: validLines.map(({ _key, _discAmtText, ...rest }) => rest),
-        notes: editingOrder?.notes || ''
+        notes
       };
       const { data: saved } = editingOrder
         ? await api.put(`/orders/${editingOrder._id}`, payload)
@@ -197,6 +199,7 @@ export default function Orders({ mode }) {
     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 10) : '');
     setDocRef(data.docRef || '');
     setPaymentTerms(data.paymentTerms || '');
+    setNotes(data.notes || '');
     setLines(data.items.map((item) => ({
       _key: ++lineKeySeq,
       product: item.product?._id || item.product,
@@ -393,6 +396,12 @@ export default function Orders({ mode }) {
                     <p className="font-medium">{detail.paymentTerms || '—'}</p>
                   </div>
                 </div>
+                {detail.notes && (
+                  <div className="text-sm">
+                    <p className="text-slate-500 text-xs">Notes</p>
+                    <p className="whitespace-pre-wrap">{detail.notes}</p>
+                  </div>
+                )}
 
                 <div className="border-t border-slate-200 pt-3 flex items-start justify-between gap-4">
                   <div>
@@ -460,6 +469,12 @@ export default function Orders({ mode }) {
                   <span className="text-slate-600">Tax</span>
                   <span className="font-figures w-28 text-right">{money(detail.taxTotal)}</span>
                 </div>
+                {detail.roundOff ? (
+                  <div className="flex justify-end gap-6 text-sm">
+                    <span className="text-slate-600">Round off</span>
+                    <span className="font-figures w-28 text-right">{money(detail.roundOff)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
                   <span>Total</span>
                   <span className="font-figures w-28 text-right">{money(detail.grandTotal)}</span>
@@ -596,6 +611,11 @@ export default function Orders({ mode }) {
             )}
           </div>
 
+          <label className="block">
+            <span className="block text-xs font-medium text-slate-600 mb-1">Notes</span>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Shown on the printed document" className="input" />
+          </label>
+
           <div className="flex items-center justify-between text-sm gap-6 pt-2 border-t border-slate-200">
             <div className="text-slate-500">
               Customer discount
@@ -606,7 +626,8 @@ export default function Orders({ mode }) {
               <span className="text-slate-500">Discount <span className="font-figures text-ledger-rose ml-2">−{money(totals.discount)}</span></span>
               <span className="text-slate-500">Subtotal <span className="font-figures text-ink-800 ml-2">{money(totals.subTotal)}</span></span>
               <span className="text-slate-500">Tax <span className="font-figures text-ink-800 ml-2">{money(totals.taxTotal)}</span></span>
-              <span className="font-medium">Total <span className="font-figures ml-2">{money(totals.subTotal + totals.taxTotal)}</span></span>
+              {rounded.roundOff !== 0 && <span className="text-slate-500">Round off <span className="font-figures text-ink-800 ml-2">{money(rounded.roundOff)}</span></span>}
+              <span className="font-medium">Total <span className="font-figures ml-2">{money(rounded.grandTotal)}</span></span>
             </div>
           </div>
 

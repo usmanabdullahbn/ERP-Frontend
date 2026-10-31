@@ -51,6 +51,16 @@ export function activeOrSelected(list, ...selectedIds) {
   return list.filter((item) => item.isActive !== false || selectedIds.includes(item._id));
 }
 
+/*
+  Document totals are rounded to the nearest rupee, the same way the server
+  does it; roundOff is the paisa difference shown as its own line.
+*/
+export function roundedTotal(subTotal, taxTotal) {
+  const exact = Math.round((Number(subTotal || 0) + Number(taxTotal || 0)) * 100) / 100;
+  const grandTotal = Math.round(exact);
+  return { grandTotal, roundOff: Math.round((grandTotal - exact) * 100) / 100 };
+}
+
 // Suggestions for a document's Payment Terms field (free text is allowed too).
 export const PAYMENT_TERMS = ['Cash', 'Advance', 'Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
