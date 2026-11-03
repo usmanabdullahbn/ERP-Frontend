@@ -166,7 +166,7 @@ export default function Assembly() {
     setEditingBom(b);
     setBomProduct(b.product?._id || b.product);
     setBomNotes(b.notes || '');
-    setBomLines(b.components.map((c) => ({ _key: ++lineKeySeq, component: c.component?._id || c.component, quantity: c.quantity })));
+    setBomLines(b.components.map((c) => ({ _key: ++lineKeySeq, component: c.component?._id || c.component, quantity: c.quantity })).concat(newComponentLine()));
     setBomError('');
     setBomModalOpen(true);
   };
@@ -174,10 +174,16 @@ export default function Assembly() {
   const updateBomLine = (i, patch) => {
     const next = [...bomLines];
     next[i] = { ...next[i], ...patch };
+    // Picking a component on the last line opens a fresh one below it.
+    if (patch.component && i === next.length - 1) next.push(newComponentLine());
     setBomLines(next);
   };
   const addBomLine = () => setBomLines([...bomLines, newComponentLine()]);
-  const removeBomLine = (i) => setBomLines(bomLines.filter((_, idx) => idx !== i));
+  // An empty line always stays at the bottom, ready for the next component.
+  const removeBomLine = (i) => {
+    const rest = bomLines.filter((_, idx) => idx !== i);
+    setBomLines(rest.length && !rest[rest.length - 1].component ? rest : [...rest, newComponentLine()]);
+  };
 
   const validBomLines = bomLines.filter((l) => l.component && l.quantity > 0);
 
@@ -449,7 +455,7 @@ export default function Assembly() {
                     {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
                   </select>
                   <input type="number" min="0" step="0.001" value={line.quantity} onChange={(e) => updateBomLine(i, { quantity: Number(e.target.value) })} className="input font-figures" />
-                  <button type="button" onClick={() => removeBomLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
+                  <button type="button" tabIndex={-1} onClick={() => removeBomLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
                     <Trash2 size={16} />
                   </button>
                 </div>

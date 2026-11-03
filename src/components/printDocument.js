@@ -127,9 +127,21 @@ export function printDocument(doc) {
   win.document.write(buildHtml(doc));
   win.document.close();
 
-  const cleanup = () => setTimeout(() => frame.remove(), 500);
+  // Chrome names the saved PDF after the app's own title, not the frame's, so
+  // the app title becomes "INV-000004 ALIYAN (WATER PUMP)" while the print dialog is open.
+  const appTitle = document.title;
+  const party = doc.party || {};
+  document.title = [doc.number, party.name || party.code].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]/g, '-');
+
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    document.title = appTitle;
+    setTimeout(() => frame.remove(), 500);
+  };
   win.addEventListener('afterprint', cleanup);
-  // Let the frame lay out before printing; the PDF file name follows the frame's <title>.
+  // Let the frame lay out before printing.
   setTimeout(() => {
     win.focus();
     win.print();

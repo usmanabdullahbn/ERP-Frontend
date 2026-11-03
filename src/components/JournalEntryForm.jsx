@@ -39,7 +39,7 @@ export default function JournalEntryForm({ open, entry, onClose, onSaved }) {
         debit: l.debit || 0,
         credit: l.credit || 0,
         memo: l.memo || ''
-      })));
+      })).concat(newLine()));
     } else {
       setDate(todayLocalISODate()); setReference(''); setNarration('');
       setLines([newLine(), newLine()]);
@@ -49,10 +49,16 @@ export default function JournalEntryForm({ open, entry, onClose, onSaved }) {
   const updateLine = (i, patch) => {
     const next = [...lines];
     next[i] = { ...next[i], ...patch };
+    // Picking an account on the last line opens a fresh one below it.
+    if (patch.account && i === next.length - 1) next.push(newLine());
     setLines(next);
   };
   const addLine = () => setLines([...lines, newLine()]);
-  const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
+  // An empty line always stays at the bottom, ready for the next account.
+  const removeLine = (i) => {
+    const rest = lines.filter((_, idx) => idx !== i);
+    setLines(rest.length && !rest[rest.length - 1].account ? rest : [...rest, newLine()]);
+  };
 
   const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
@@ -108,7 +114,7 @@ export default function JournalEntryForm({ open, entry, onClose, onSaved }) {
               </select>
               <input type="number" min="0" placeholder="Debit" value={line.debit} onChange={(e) => updateLine(i, { debit: e.target.value, credit: 0 })} className="input font-figures col-span-3" />
               <input type="number" min="0" placeholder="Credit" value={line.credit} onChange={(e) => updateLine(i, { credit: e.target.value, debit: 0 })} className="input font-figures col-span-3" />
-              <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose col-span-1 flex justify-center"><Trash2 size={16} /></button>
+              <button type="button" tabIndex={-1} onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose col-span-1 flex justify-center"><Trash2 size={16} /></button>
             </div>
           ))}
           <button type="button" onClick={addLine} className="text-xs text-ledger-teal hover:underline self-start">+ Add line</button>

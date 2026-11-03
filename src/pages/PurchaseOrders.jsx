@@ -91,11 +91,19 @@ export default function PurchaseOrders({ mode }) {
       const prod = products.find((p) => p._id === patch.product);
       if (prod) { next[i].unitCost = prod.costPrice; next[i].taxRate = prod.taxRate; }
     }
+    // Picking a product on the last line opens a fresh one below it, so entry
+    // flows straight down without "+ Add line".
+    if (patch.product && i === next.length - 1) next.push(blankLine());
     setLines(next);
   };
 
-  const addLine = () => setLines([...lines, newLine(defaultWarehouseId)]);
-  const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
+  const blankLine = () => newLine(defaultWarehouseId);
+  const addLine = () => setLines([...lines, blankLine()]);
+  // An empty line always stays at the bottom, ready for the next item.
+  const removeLine = (i) => {
+    const rest = lines.filter((_, idx) => idx !== i);
+    setLines(rest.length && !rest[rest.length - 1].product ? rest : [...rest, blankLine()]);
+  };
 
   const lineGross = (l) => (l.quantity || 0) * (l.unitCost || 0);
   const lineDiscount = (l) => Math.round(lineGross(l) * (l.discountRate || 0)) / 100;
@@ -111,7 +119,9 @@ export default function PurchaseOrders({ mode }) {
   };
 
   const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0 && l.unitCost >= 0);
-  const hasIncompleteLines = validLines.length !== lines.length;
+  // Lines with no product are the empty entry row and are simply skipped.
+  const filledLines = lines.filter((l) => l.product);
+  const hasIncompleteLines = validLines.length !== filledLines.length;
 
   // Totals mirror validLines exactly — every line included here is a line
   // that will actually be submitted, so what's previewed is what gets saved.
@@ -195,7 +205,7 @@ export default function PurchaseOrders({ mode }) {
       unitCost: item.unitCost,
       taxRate: item.taxRate,
       discountRate: item.discountRate || 0
-    })));
+    })).concat(newLine(defaultWarehouseId)));
   };
 
   const handleDeleteClick = (orderId) => {
@@ -542,7 +552,7 @@ export default function PurchaseOrders({ mode }) {
                 <span className="sr-only">Delete</span>
               </div>
               {lines.map((line, i) => {
-                const incomplete = !(line.product && line.warehouse && line.quantity > 0 && line.unitCost >= 0);
+                const incomplete = line.product && !(line.warehouse && line.quantity > 0 && line.unitCost >= 0);
                 const lineTotal = ((line.quantity || 0) * (line.unitCost || 0)) * (1 - ((line.discountRate || 0) / 100));
                 return (
                   <div
@@ -575,7 +585,7 @@ export default function PurchaseOrders({ mode }) {
                     <div className="input font-figures bg-slate-50 text-slate-700 flex items-center justify-end h-[42px] px-3 rounded-lg">
                       {money(lineTotal)}
                     </div>
-                    <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
+                    <button type="button" tabIndex={-1} onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
                       <Trash2 size={16} />
                     </button>
                     {incomplete && (
@@ -589,7 +599,7 @@ export default function PurchaseOrders({ mode }) {
             </div>
             {hasIncompleteLines && (
               <p className="text-xs text-ledger-rose mt-2">
-                {lines.length - validLines.length} line(s) above are incomplete and are excluded from the totals below and from what gets saved.
+                {filledLines.length - validLines.length} line(s) above are incomplete and are excluded from the totals below and from what gets saved.
               </p>
             )}
           </div>

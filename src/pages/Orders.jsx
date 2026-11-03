@@ -91,14 +91,22 @@ export default function Orders({ mode }) {
       const prod = products.find((p) => p._id === patch.product);
       if (prod) { next[i].unitPrice = prod.salePrice; next[i].taxRate = prod.taxRate; }
     }
+    // Picking a product on the last line opens a fresh one below it, so entry
+    // flows straight down without "+ Add line".
+    if (patch.product && i === next.length - 1) next.push(blankLine());
     setLines(next);
   };
 
   const selectedCustomerDiscount = Number(customers.find((c) => c._id === customer)?.discountRate || 0);
 
   // New lines start with the selected customer's default discount.
-  const addLine = () => setLines([...lines, { ...newLine(defaultWarehouseId), discountRate: selectedCustomerDiscount }]);
-  const removeLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
+  const blankLine = () => ({ ...newLine(defaultWarehouseId), discountRate: selectedCustomerDiscount });
+  const addLine = () => setLines([...lines, blankLine()]);
+  // An empty line always stays at the bottom, ready for the next item.
+  const removeLine = (i) => {
+    const rest = lines.filter((_, idx) => idx !== i);
+    setLines(rest.length && !rest[rest.length - 1].product ? rest : [...rest, blankLine()]);
+  };
 
   // Lines still on the previous customer's default (or 0) move to the new
   // customer's default; a discount typed in by hand is left alone.
@@ -124,7 +132,9 @@ export default function Orders({ mode }) {
   };
 
   const validLines = lines.filter((l) => l.product && l.warehouse && l.quantity > 0 && l.unitPrice >= 0);
-  const hasIncompleteLines = validLines.length !== lines.length;
+  // Lines with no product are the empty entry row and are simply skipped.
+  const filledLines = lines.filter((l) => l.product);
+  const hasIncompleteLines = validLines.length !== filledLines.length;
 
   // Totals mirror validLines exactly — every line included here is a line
   // that will actually be submitted, so what's previewed is what gets saved.
@@ -208,7 +218,7 @@ export default function Orders({ mode }) {
       unitPrice: item.unitPrice,
       taxRate: item.taxRate,
       discountRate: item.discountRate || 0
-    })));
+    })).concat({ ...newLine(defaultWarehouseId), discountRate: Number(customers.find((c) => c._id === (data.customer?._id || data.customer))?.discountRate || 0) }));
   };
 
   const handleDeleteClick = (orderId) => {
@@ -559,7 +569,7 @@ export default function Orders({ mode }) {
                 <span className="sr-only">Delete</span>
               </div>
               {lines.map((line, i) => {
-                const incomplete = !(line.product && line.warehouse && line.quantity > 0 && line.unitPrice >= 0);
+                const incomplete = line.product && !(line.warehouse && line.quantity > 0 && line.unitPrice >= 0);
                 const lineTotal = ((line.quantity || 0) * (line.unitPrice || 0)) * (1 - ((line.discountRate || 0) / 100));
                 return (
                   <div
@@ -592,7 +602,7 @@ export default function Orders({ mode }) {
                     <div className="input font-figures bg-slate-50 text-slate-700 flex items-center justify-end h-[42px] px-3 rounded-lg">
                       {money(lineTotal)}
                     </div>
-                    <button type="button" onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
+                    <button type="button" tabIndex={-1} onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
                       <Trash2 size={16} />
                     </button>
                     {incomplete && (
@@ -606,7 +616,7 @@ export default function Orders({ mode }) {
             </div>
             {hasIncompleteLines && (
               <p className="text-xs text-ledger-rose mt-2">
-                {lines.length - validLines.length} line(s) above are incomplete and are excluded from the totals below and from what gets saved.
+                {filledLines.length - validLines.length} line(s) above are incomplete and are excluded from the totals below and from what gets saved.
               </p>
             )}
           </div>
