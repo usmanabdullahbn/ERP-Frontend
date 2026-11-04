@@ -22,7 +22,10 @@ const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', w
   this component so the form, post, void and delete logic live in one place.
 */
 export default function Bills({ mode }) {
-  const { isAdmin } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
+  const canManage = hasPermission('purchases.manage');
+  // Non-admins with purchases.manage can create and edit drafts, but only admins post or change posted bills.
+  const canEditDraft = (doc) => isAdmin || (canManage && doc.status === 'DRAFT');
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -295,7 +298,7 @@ export default function Bills({ mode }) {
     { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
     { key: 'actions', label: '', align: 'right', render: (r) => (
         <div className="flex items-center justify-end gap-2">
-          {isAdmin && r.status !== 'POSTING' && (
+          {canEditDraft(r) && r.status !== 'POSTING' && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openEdit(r); }}
@@ -338,7 +341,7 @@ export default function Bills({ mode }) {
       <button type="button" onClick={handlePrintGoodsNote} className="btn-ghost inline-flex items-center gap-2 print:hidden" title="Print without prices">
         <Truck size={16} /> GRN
       </button>
-      {isAdmin && detail.status !== 'POSTING' && (
+      {canEditDraft(detail) && detail.status !== 'POSTING' && (
         <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2 print:hidden">
           <Pencil size={16} /> Edit
         </button>
@@ -355,7 +358,7 @@ export default function Bills({ mode }) {
     </>
   );
 
-  const listActions = isAdmin && (
+  const listActions = (isAdmin || canManage) && (
     <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
       <Plus size={15} /> New Bill
     </button>
@@ -626,7 +629,7 @@ export default function Bills({ mode }) {
           <div className="flex justify-end gap-2">
             <button type="button" disabled={submitting} onClick={() => navigate(formBackTo)} className="btn-ghost disabled:opacity-60">Cancel</button>
             <button disabled={submitting} onClick={() => save(false)} className="btn-ghost disabled:opacity-60">Save as draft</button>
-            <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>
+            {isAdmin && <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>}
           </div>
         </div>
         </div>

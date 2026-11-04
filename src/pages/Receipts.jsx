@@ -40,6 +40,8 @@ export default function Receipts({ mode }) {
   // Settlement discount per invoice — writes off a short payment.
   const [discounts, setDiscounts] = useState({});
   const [allocationsTouched, setAllocationsTouched] = useState(false);
+  // Until an amount is typed, Amount Received follows whatever is applied to invoices.
+  const [amountTouched, setAmountTouched] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -119,6 +121,7 @@ export default function Receipts({ mode }) {
     setAllocations({});
     setDiscounts({});
     setAllocationsTouched(false);
+    setAmountTouched(false);
     setError('');
   };
 
@@ -143,6 +146,7 @@ export default function Receipts({ mode }) {
     setAllocations(initial);
     setDiscounts(initialDiscounts);
     setAllocationsTouched(true);
+    setAmountTouched(true);
   };
 
   useEffect(() => {
@@ -167,6 +171,10 @@ export default function Receipts({ mode }) {
   const overAllocated = allocatedTotal > amountValue;
   const remainingFor = (inv) => round2(dueFor(inv) - Number(allocations[inv._id] || 0) - Number(discounts[inv._id] || 0));
   const overSettled = openInvoices.some((inv) => remainingFor(inv) < 0);
+
+  useEffect(() => {
+    if (!amountTouched && allocationsTouched) setAmount(allocatedTotal ? String(allocatedTotal) : '');
+  }, [allocatedTotal, amountTouched, allocationsTouched]);
 
   const setAllocation = (invoiceId, value) => {
     setAllocationsTouched(true);
@@ -311,7 +319,7 @@ export default function Receipts({ mode }) {
                   ), customer ? `Outstanding: ${money(outstanding)} across ${openInvoices.length} invoice(s)` : null)}
                   {field('Date', <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />)}
                   {field('Amount Received', (
-                    <input required type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="input font-figures text-lg" />
+                    <input required type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => { setAmount(e.target.value); setAmountTouched(e.target.value !== ''); }} className="input font-figures text-lg" />
                   ))}
                   {field('Deposit to', (
                     <select required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="input">

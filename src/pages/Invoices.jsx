@@ -23,7 +23,10 @@ const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', w
   live in one place.
 */
 export default function Invoices({ mode }) {
-  const { isAdmin } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
+  const canManage = hasPermission('sales.manage');
+  // Non-admins with sales.manage can create and edit drafts, but only admins post or change posted invoices.
+  const canEditDraft = (doc) => isAdmin || (canManage && doc.status === 'DRAFT');
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -312,7 +315,7 @@ export default function Invoices({ mode }) {
     { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
     { key: 'actions', label: '', align: 'right', render: (r) => (
         <div className="flex items-center justify-end gap-2">
-          {isAdmin && r.status !== 'POSTING' && (
+          {canEditDraft(r) && r.status !== 'POSTING' && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openEdit(r); }}
@@ -355,7 +358,7 @@ export default function Invoices({ mode }) {
       <button type="button" onClick={handlePrintGoodsNote} className="btn-ghost inline-flex items-center gap-2 print:hidden" title="Print without prices">
         <Truck size={16} /> Delivery Challan
       </button>
-      {isAdmin && detail.status !== 'POSTING' && (
+      {canEditDraft(detail) && detail.status !== 'POSTING' && (
         <button type="button" onClick={() => openEdit(detail)} className="btn-ghost inline-flex items-center gap-2 print:hidden">
           <Pencil size={16} /> Edit
         </button>
@@ -372,7 +375,7 @@ export default function Invoices({ mode }) {
     </>
   );
 
-  const listActions = isAdmin && (
+  const listActions = (isAdmin || canManage) && (
     <button onClick={openCreate} className="flex items-center gap-1.5 btn-primary">
       <Plus size={15} /> New Invoice
     </button>
@@ -653,7 +656,7 @@ export default function Invoices({ mode }) {
           <div className="flex justify-end gap-2">
             <button type="button" disabled={submitting} onClick={() => navigate(formBackTo)} className="btn-ghost disabled:opacity-60">Cancel</button>
             <button disabled={submitting} onClick={() => save(false)} className="btn-ghost disabled:opacity-60">Save as draft</button>
-            <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>
+            {isAdmin && <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>}
           </div>
         </div>
         </div>
