@@ -290,7 +290,7 @@ export default function Assembly() {
       <Modal open={prodModalOpen} onClose={() => !prodSubmitting && setProdModalOpen(false)} title="New Production" width="max-w-2xl">
         <div className="flex flex-col gap-4">
           {prodError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{prodError}</div>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Product to produce</span>
               <select value={prodProduct} onChange={(e) => setProdProduct(e.target.value)} className="input">
@@ -306,7 +306,7 @@ export default function Assembly() {
               </select>
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Quantity to produce</span>
               <input type="number" min="0" value={prodQuantity} onChange={(e) => setProdQuantity(Number(e.target.value))} className="input font-figures" />
@@ -322,21 +322,21 @@ export default function Assembly() {
           </label>
 
           {selectedBom && (
-            <div>
+            <div className="overflow-x-auto">
               <p className="text-xs font-medium text-slate-600 mb-2">Components required</p>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                    <th className="py-2">Component</th>
-                    <th className="text-right">Required</th>
+                    <th className="py-2 pr-3">Component</th>
+                    <th className="text-right pr-3">Required</th>
                     <th className="text-right">Available</th>
                   </tr>
                 </thead>
                 <tbody>
                   {requirementRows.map((r) => (
                     <tr key={r.key} className="border-b border-slate-100">
-                      <td className="py-2">{r.name}</td>
-                      <td className="text-right font-figures">{r.required}</td>
+                      <td className="py-2 pr-3">{r.name}</td>
+                      <td className="text-right font-figures pr-3">{r.required}</td>
                       <td className={`text-right font-figures ${r.short ? 'text-ledger-rose' : ''}`}>{r.available}</td>
                     </tr>
                   ))}
@@ -379,26 +379,28 @@ export default function Assembly() {
               </div>
             </div>
 
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                  <th className="py-2">Component consumed</th>
-                  <th className="text-right">Qty / unit</th>
-                  <th className="text-right">Qty used</th>
-                  <th className="text-right">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.components.map((c, i) => (
-                  <tr key={c.product?._id ? `${c.product._id}-${i}` : i} className="border-b border-slate-100">
-                    <td className="py-2">{c.product?.name}</td>
-                    <td className="text-right font-figures">{c.quantityPerUnit}</td>
-                    <td className="text-right font-figures">{c.quantityUsed}</td>
-                    <td className="text-right font-figures">{money(c.unitCost * c.quantityUsed)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                    <th className="py-2 pr-3">Component consumed</th>
+                    <th className="text-right pr-3">Qty / unit</th>
+                    <th className="text-right pr-3">Qty used</th>
+                    <th className="text-right">Cost</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {detail.components.map((c, i) => (
+                    <tr key={c.product?._id ? `${c.product._id}-${i}` : i} className="border-b border-slate-100">
+                      <td className="py-2 pr-3">{c.product?.name}</td>
+                      <td className="text-right font-figures pr-3">{c.quantityPerUnit}</td>
+                      <td className="text-right font-figures pr-3">{c.quantityUsed}</td>
+                      <td className="text-right font-figures">{money(c.unitCost * c.quantityUsed)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="border-t border-slate-200 pt-3 flex justify-end gap-6 text-sm">
               <span className="text-slate-600">Total component cost</span>

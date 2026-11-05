@@ -145,7 +145,7 @@ export default function Products() {
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title={editing ? 'Edit Product' : 'New Product'}>
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">SKU</span>
               <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="input" />
@@ -155,7 +155,7 @@ export default function Products() {
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Category</span>
               <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input" />
@@ -165,7 +165,7 @@ export default function Products() {
               <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="input" />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Alt Unit (optional)</span>
               <input value={form.altUnit} onChange={(e) => setForm({ ...form, altUnit: e.target.value })} placeholder="e.g. length, box" className="input" />
@@ -183,7 +183,7 @@ export default function Products() {
               <option value="SERVICE">Service</option>
             </select>
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Cost Price</span>
               <input type="number" min="0" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: Number(e.target.value) })} className="input font-figures" />
@@ -198,7 +198,7 @@ export default function Products() {
             </label>
           </div>
           {form.type === 'STOCK' && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
                 <span className="block text-xs font-medium text-slate-600 mb-1">Reorder Level</span>
                 <input type="number" min="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} className="input font-figures" />
@@ -214,29 +214,31 @@ export default function Products() {
       </Modal>
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Stock movements — ${detail?.name || ''}`} width="max-w-2xl">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-              <th className="py-2">Date</th><th>Warehouse</th><th>Direction</th>
-              <th className="text-right">Qty</th><th>Source</th><th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {movements.map((m) => (
-              <tr key={m._id} className="border-b border-slate-100">
-                <td className="py-2">{new Date(m.date).toLocaleDateString()}</td>
-                <td>{m.warehouse?.name}</td>
-                <td className={m.direction === 'IN' ? 'text-ledger-teal' : 'text-ledger-rose'}>{m.direction}</td>
-                <td className="text-right font-figures">{m.quantity}</td>
-                <td>{m.sourceType}</td>
-                <td>{m.note}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                <th className="py-2 pr-3">Date</th><th className="pr-3">Warehouse</th><th className="pr-3">Direction</th>
+                <th className="text-right pr-3">Qty</th><th className="pr-3">Source</th><th>Note</th>
               </tr>
-            ))}
-            {movements.length === 0 && (
-              <tr><td colSpan={6} className="text-center text-slate-400 py-6">No stock movements yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {movements.map((m) => (
+                <tr key={m._id} className="border-b border-slate-100">
+                  <td className="py-2 pr-3 whitespace-nowrap">{new Date(m.date).toLocaleDateString()}</td>
+                  <td className="pr-3 whitespace-nowrap">{m.warehouse?.name}</td>
+                  <td className={`pr-3 whitespace-nowrap ${m.direction === 'IN' ? 'text-ledger-teal' : 'text-ledger-rose'}`}>{m.direction}</td>
+                  <td className="text-right font-figures pr-3 whitespace-nowrap">{m.quantity}</td>
+                  <td className="pr-3 whitespace-nowrap">{m.sourceType}</td>
+                  <td>{m.note}</td>
+                </tr>
+              ))}
+              {movements.length === 0 && (
+                <tr><td colSpan={6} className="text-center text-slate-400 py-6">No stock movements yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Modal>
     </PageLayout>
   );

@@ -83,7 +83,7 @@ export default function ChartOfAccounts() {
       )}
     >
       {loadError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{loadError}</div>}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <button onClick={() => selectType('')} className={`px-3 py-1.5 rounded-lg text-xs ${!filterType ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>All</button>
         {TYPES.map((t) => (
           <button key={t} onClick={() => selectType(t)} className={`px-3 py-1.5 rounded-lg text-xs ${filterType === t ? 'bg-ink-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{t}</button>
@@ -107,7 +107,7 @@ export default function ChartOfAccounts() {
       <Modal open={modalOpen} onClose={() => !submitting && setModalOpen(false)} title="New Account">
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Code</span>
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="input font-figures" /></label>
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Type</span>

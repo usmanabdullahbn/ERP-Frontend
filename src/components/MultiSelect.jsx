@@ -59,7 +59,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
         <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-full min-w-[220px] bg-white border border-slate-200 rounded-lg shadow-lg">
+        <div className="absolute z-30 mt-1 w-full sm:min-w-[220px] max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-lg shadow-lg">
           <div className="relative p-2 border-b border-slate-100">
             <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input

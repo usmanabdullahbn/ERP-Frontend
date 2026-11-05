@@ -179,13 +179,13 @@ export default function Bank() {
           {acctError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{acctError}</div>}
           <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Name</span>
             <input required value={acctForm.name} onChange={(e) => setAcctForm({ ...acctForm, name: e.target.value })} className="input" /></label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Bank Name</span>
               <input value={acctForm.bankName} onChange={(e) => setAcctForm({ ...acctForm, bankName: e.target.value })} className="input" /></label>
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Account Number</span>
               <input value={acctForm.accountNumber} onChange={(e) => setAcctForm({ ...acctForm, accountNumber: e.target.value })} className="input" /></label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Type</span>
               <select value={acctForm.type} onChange={(e) => setAcctForm({ ...acctForm, type: e.target.value })} className="input">
                 <option value="BANK">Bank</option>
@@ -201,7 +201,7 @@ export default function Bank() {
       <Modal open={txnModal} onClose={() => !txnSubmitting && setTxnModal(false)} title="New Bank Transaction">
         <form onSubmit={saveTxn} className="flex flex-col gap-3">
           {txnError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{txnError}</div>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From Account</span>
               <select required value={txnForm.bankAccount} onChange={(e) => setTxnForm({ ...txnForm, bankAccount: e.target.value })} className="input">
                 <option value="">Select…</option>
@@ -227,7 +227,7 @@ export default function Bank() {
                 {glAccounts.map((a) => <option key={a._id} value={a._id}>{a.code} — {a.name}</option>)}
               </select></label>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Date</span>
               <input type="date" value={txnForm.date} onChange={(e) => setTxnForm({ ...txnForm, date: e.target.value })} className="input" /></label>
             <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">Amount</span>
@@ -261,25 +261,25 @@ export default function Bank() {
               </div>
             </div>
 
-            <div className="border-t border-slate-200 pt-3">
+            <div className="border-t border-slate-200 pt-3 overflow-x-auto">
               <p className="text-xs font-medium text-slate-600 mb-2">Recent transactions</p>
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                    <th className="py-2 font-semibold">Date</th>
-                    <th className="font-semibold">Type</th>
-                    <th className="font-semibold">To</th>
-                    <th className="text-right font-semibold">Amount</th>
+                    <th className="py-2 pr-3 font-semibold">Date</th>
+                    <th className="pr-3 font-semibold">Type</th>
+                    <th className="pr-3 font-semibold">To</th>
+                    <th className="text-right pr-3 font-semibold">Amount</th>
                     <th className="font-semibold">Reference</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transactions.filter((t) => (t.bankAccount?._id || t.bankAccount) === acctDetail._id).map((t) => (
                     <tr key={t._id} className="border-b border-slate-100">
-                      <td className="py-2">{new Date(t.date).toLocaleDateString()}</td>
-                      <td>{t.type}</td>
-                      <td>{t.toBankAccount?.name || t.contraAccount?.name || ''}</td>
-                      <td className="text-right font-figures">{money(t.amount)}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{new Date(t.date).toLocaleDateString()}</td>
+                      <td className="pr-3 whitespace-nowrap">{t.type}</td>
+                      <td className="pr-3 whitespace-nowrap">{t.toBankAccount?.name || t.contraAccount?.name || ''}</td>
+                      <td className="text-right font-figures pr-3 whitespace-nowrap">{money(t.amount)}</td>
                       <td>{t.reference}</td>
                     </tr>
                   ))}

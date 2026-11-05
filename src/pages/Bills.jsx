@@ -13,7 +13,7 @@ import { printDocument, printGoodsNote, documentLines, documentTotals, LINE_COLU
 
 let lineKeySeq = 0;
 // Product, Warehouse, Qty, Cost, Disc %, Disc Amt, Total, delete
-const LINE_GRID = 'minmax(0,2.4fr) minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1.1fr) minmax(0,0.9fr) minmax(0,1.1fr) minmax(0,1.1fr) 32px';
+const LINE_GRID_CLASS = 'lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_32px]';
 const newLine = (defaultWarehouse = '') => ({ _key: ++lineKeySeq, product: '', warehouse: defaultWarehouse, quantity: 1, unitCost: 0, taxRate: 0, discountRate: 0 });
 
 /*
@@ -380,7 +380,7 @@ export default function Bills({ mode }) {
           {detailError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
           {!detail && !detailError && <div className="text-sm text-slate-400 py-12 text-center">Loading…</div>}
           {detail && (
-            <div className="bill-document bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4 max-w-4xl">
+            <div className="bill-document bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-6 flex flex-col gap-4 max-w-4xl">
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <h1 className="text-xl font-semibold">Purchase Bill</h1>
@@ -396,7 +396,7 @@ export default function Bills({ mode }) {
                     <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm">
                   <div>
                     <p className="text-slate-500 text-xs">Due Date</p>
                     <p className="font-medium">{detail.dueDate ? new Date(detail.dueDate).toLocaleDateString() : '—'}</p>
@@ -405,7 +405,7 @@ export default function Bills({ mode }) {
                     <p className="text-slate-500 text-xs">Doc #</p>
                     <p className="font-medium">{detail.docRef || '—'}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right">
                     <p className="text-slate-500 text-xs">Payment Terms</p>
                     <p className="font-medium">{detail.paymentTerms || '—'}</p>
                   </div>
@@ -503,9 +503,9 @@ export default function Bills({ mode }) {
           <Link to={formBackTo} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-ink-900 mb-4">
             <ArrowLeft size={15} /> {mode === 'edit' ? 'Back to bill' : 'Back to Purchase Bills'}
           </Link>
-        <div className="bg-white rounded-xl border border-slate-200 shadow-card p-6 flex flex-col gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-6 flex flex-col gap-4">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Supplier</span>
               <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
@@ -548,8 +548,8 @@ export default function Bills({ mode }) {
               <span className="text-xs font-medium text-slate-600">Line items</span>
               <button onClick={addLine} type="button" className="text-xs text-ledger-teal hover:underline">+ Add line</button>
             </div>
-            <div className="flex flex-col gap-2">
-              <div className="grid gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500" style={{ gridTemplateColumns: LINE_GRID }}>
+            <div className="flex flex-col gap-3 lg:gap-2">
+              <div className={`hidden lg:grid gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500 ${LINE_GRID_CLASS}`}>
                 <span>Product</span>
                 <span>Warehouse</span>
                 <span>Qty</span>
@@ -565,35 +565,55 @@ export default function Bills({ mode }) {
                 return (
                   <div
                     key={line._key}
-                    className="grid gap-2 items-end"
-                    style={{ gridTemplateColumns: LINE_GRID }}
+                    className={`grid grid-cols-2 sm:grid-cols-6 ${LINE_GRID_CLASS} gap-2 items-end rounded-lg border border-slate-200 p-3 lg:border-0 lg:p-0 lg:rounded-none`}
                   >
-                    <ProductPicker products={products} value={line.product} onChange={(product) => updateLine(i, { product })} />
-                    <select value={line.warehouse} onChange={(e) => updateLine(i, { warehouse: e.target.value })} className={`input ${!line.warehouse && line.product ? 'border-ledger-rose' : ''}`}>
-                      <option value="">Warehouse…</option>
-                      {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
-                    </select>
-                    <input type="number" min="0" placeholder="Qty" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} className="input font-figures" />
-                    <input type="number" min="0" placeholder="Cost" value={line.unitCost} onChange={(e) => updateLine(i, { unitCost: Number(e.target.value) })} className="input font-figures" />
-                    <div className="relative">
-                      <input type="number" min="0" max="100" step="0.01" placeholder="0" value={line.discountRate} onChange={(e) => updateLine(i, { discountRate: Number(e.target.value) })} className="input font-figures pr-7" />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                    <div className="col-span-2 sm:col-span-3 lg:col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Product</span>
+                      <ProductPicker products={products} value={line.product} onChange={(product) => updateLine(i, { product })} />
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      title="Discount amount — converted to the line's discount %"
-                      value={line._discAmtText ?? lineDiscount(line)}
-                      onChange={(e) => setDiscountAmount(i, e.target.value)}
-                      onBlur={() => updateLine(i, { _discAmtText: undefined })}
-                      className="input font-figures"
-                    />
-                    <div className="input font-figures bg-slate-50 text-slate-700 flex items-center justify-end h-[42px] px-3 rounded-lg">
-                      {money(lineTotal)}
+                    <div className="col-span-2 sm:col-span-3 lg:col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Warehouse</span>
+                      <select value={line.warehouse} onChange={(e) => updateLine(i, { warehouse: e.target.value })} className={`input ${!line.warehouse && line.product ? 'border-ledger-rose' : ''}`}>
+                        <option value="">Warehouse…</option>
+                        {warehouses.map((w) => <option key={w._id} value={w._id}>{w.name}</option>)}
+                      </select>
                     </div>
-                    <button type="button" tabIndex={-1} onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center">
+                    <div className="col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Qty</span>
+                      <input type="number" min="0" placeholder="Qty" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} className="input font-figures" />
+                    </div>
+                    <div className="col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Cost</span>
+                      <input type="number" min="0" placeholder="Cost" value={line.unitCost} onChange={(e) => updateLine(i, { unitCost: Number(e.target.value) })} className="input font-figures" />
+                    </div>
+                    <div className="col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Disc %</span>
+                      <div className="relative">
+                        <input type="number" min="0" max="100" step="0.01" placeholder="0" value={line.discountRate} onChange={(e) => updateLine(i, { discountRate: Number(e.target.value) })} className="input font-figures pr-7" />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                      </div>
+                    </div>
+                    <div className="col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Disc Amt</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        title="Discount amount — converted to the line's discount %"
+                        value={line._discAmtText ?? lineDiscount(line)}
+                        onChange={(e) => setDiscountAmount(i, e.target.value)}
+                        onBlur={() => updateLine(i, { _discAmtText: undefined })}
+                        className="input font-figures"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Total</span>
+                      <div className="input font-figures bg-slate-50 text-slate-700 flex items-center justify-end h-[42px] px-3 rounded-lg">
+                        {money(lineTotal)}
+                      </div>
+                    </div>
+                    <button type="button" tabIndex={-1} onClick={() => removeLine(i)} className="text-slate-400 hover:text-ledger-rose flex justify-center h-[42px] items-center col-span-1">
                       <Trash2 size={16} />
                     </button>
                     {incomplete && (
@@ -617,7 +637,7 @@ export default function Bills({ mode }) {
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Shown on the printed document" className="input" />
           </label>
 
-          <div className="flex flex-wrap justify-end text-sm gap-6 pt-2 border-t border-slate-200">
+          <div className="flex flex-wrap justify-end text-sm gap-x-6 gap-y-1 pt-2 border-t border-slate-200">
             <span className="text-slate-500">Gross <span className="font-figures text-ink-800 ml-2">{money(totals.gross)}</span></span>
             <span className="text-slate-500">Discount <span className="font-figures text-ledger-rose ml-2">−{money(totals.discount)}</span></span>
             <span className="text-slate-500">Subtotal <span className="font-figures text-ink-800 ml-2">{money(totals.subTotal)}</span></span>
@@ -626,7 +646,7 @@ export default function Bills({ mode }) {
             <span className="font-medium">Total <span className="font-figures ml-2">{money(rounded.grandTotal)}</span></span>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <button type="button" disabled={submitting} onClick={() => navigate(formBackTo)} className="btn-ghost disabled:opacity-60">Cancel</button>
             <button disabled={submitting} onClick={() => save(false)} className="btn-ghost disabled:opacity-60">Save as draft</button>
             {isAdmin && <button disabled={submitting} onClick={() => save(true)} className="btn-teal disabled:opacity-60">{submitting ? 'Saving…' : 'Save & post'}</button>}

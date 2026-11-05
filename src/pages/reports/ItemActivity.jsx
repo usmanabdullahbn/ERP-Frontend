@@ -95,7 +95,7 @@ export default function ItemActivity() {
   return (
     <PageLayout title="Item Activity" actions={visibleItems.length > 0 && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <label className="block">
           <span className="block text-xs font-medium text-slate-600 mb-1">Product</span>
           <MultiSelect
@@ -147,12 +147,12 @@ export default function ItemActivity() {
         <div className="space-y-6">
           {visibleItems.map((r) => (
             <div key={r.product._id} className="bg-white rounded-xl border border-slate-200 shadow-card overflow-x-auto">
-              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-4">
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                 <div>
                   <h3 className="font-semibold text-slate-900">{r.product.name}</h3>
                   <p className="text-xs text-slate-500">{r.product.sku}{r.product.unit ? ` · ${r.product.unit}` : ''}</p>
                 </div>
-                <div className="flex gap-6 text-right text-sm">
+                <div className="flex flex-wrap gap-4 sm:gap-6 text-right text-sm">
                   <div><p className="text-slate-500 text-xs">Opening</p><p className="font-figures">{r.openingQty.toLocaleString()}</p></div>
                   <div><p className="text-slate-500 text-xs">In</p><p className="font-figures text-ledger-teal">{r.totalIn.toLocaleString()}</p></div>
                   <div><p className="text-slate-500 text-xs">Out</p><p className="font-figures text-ledger-rose">{r.totalOut.toLocaleString()}</p></div>

@@ -229,7 +229,7 @@ export default function Users() {
           </label>
           <div>
             <span className="block text-xs font-medium text-slate-600 mb-2">Roles <span className="text-ledger-rose">*</span></span>
-            <div className="grid grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto">
               {roles.map((r) => (
                 <label key={r._id} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
@@ -259,7 +259,7 @@ export default function Users() {
             <input value={roleForm.description} onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })} className="input" /></label>
           <div>
             <span className="block text-xs font-medium text-slate-600 mb-2">Permissions</span>
-            <div className="grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto border border-slate-200 rounded-lg p-3">
               {catalog.map((p) => (
                 <label key={p} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={roleForm.permissions.includes(p)} onChange={() => togglePerm(p)} />

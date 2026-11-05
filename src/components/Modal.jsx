@@ -51,20 +51,20 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-6" style={{ zIndex: 50 + layer }}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-3 sm:p-6" style={{ zIndex: 50 + layer }}>
       <div
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`bg-white rounded-xl shadow-xl w-full ${width} mt-10 mb-10 outline-none`}
+        className={`bg-white rounded-xl shadow-xl w-full ${width} my-4 sm:my-10 outline-none`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="font-display text-lg text-ink-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 gap-2">
+          <h2 className="font-display text-base sm:text-lg text-ink-800 truncate">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none shrink-0">&times;</button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6 overflow-x-auto">{children}</div>
       </div>
     </div>
   );

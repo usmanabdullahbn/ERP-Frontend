@@ -117,7 +117,7 @@ export default function StockSummary() {
   return (
     <PageLayout title="Stock Summary" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
         <label className="flex items-center gap-2 pb-2 text-sm text-slate-600 cursor-pointer">
@@ -134,7 +134,7 @@ export default function StockSummary() {
 
       {data && (
         <>
-          <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-card p-5 flex justify-between items-center">
+          <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-5 flex flex-wrap justify-between items-center gap-2">
             <span className="font-display text-ink-800">Total Stock Value{hasFilters && <span className="ml-2 text-xs text-slate-400">(filtered — {visibleRows.length} of {data.rows.length} items)</span>}</span>
             <span className="font-figures text-xl font-semibold">{money(hasFilters ? visibleValue : data.totalStockValue)}</span>
           </div>

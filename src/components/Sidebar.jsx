@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Truck, Package, Landmark, BookOpen, BarChart3, ShieldCheck, ChevronDown
+  LayoutDashboard, Users, Truck, Package, Landmark, BookOpen, BarChart3, ShieldCheck, ChevronDown, X
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -74,7 +74,7 @@ const SECTIONS = [
   }
 ];
 
-function Section({ section }) {
+function Section({ section, onNavigate }) {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(true);
   if (section.perm && !hasPermission(...section.perm)) return null;
@@ -95,6 +95,7 @@ function Section({ section }) {
               key={item.to}
               to={item.to}
               end={item.to === '/'}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-lg mx-1 text-sm transition-colors ${
                   isActive ? 'bg-ledger-teal/20 text-white' : 'text-slate-300 hover:bg-ink-600 hover:text-white'
@@ -111,23 +112,47 @@ function Section({ section }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   return (
-    <aside className="w-64 shrink-0 bg-ink-900 min-h-screen flex flex-col py-5">
-      <div className="px-5 mb-6 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-ledger-teal flex items-center justify-center font-display font-bold text-white text-sm">
-          L
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 bg-ink-900/50 z-40 lg:hidden no-print"
+          onClick={onClose}
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-ink-900 min-h-screen flex flex-col py-5 transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="px-5 mb-6 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-ledger-teal flex items-center justify-center font-display font-bold text-white text-sm">
+              L
+            </div>
+            <div>
+              <p className="font-display text-white font-semibold leading-tight">Ledgerline</p>
+              <p className="text-[11px] text-slate-400 leading-tight">ERP &amp; Accounting</p>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-ink-800"
+              aria-label="Close navigation menu"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
-        <div>
-          <p className="font-display text-white font-semibold leading-tight">Ledgerline</p>
-          <p className="text-[11px] text-slate-400 leading-tight">ERP &amp; Accounting</p>
-        </div>
-      </div>
-      <nav className="flex-1 overflow-y-auto">
-        {SECTIONS.map((s) => (
-          <Section key={s.title} section={s} />
-        ))}
-      </nav>
-    </aside>
+        <nav className="flex-1 overflow-y-auto">
+          {SECTIONS.map((s) => (
+            <Section key={s.title} section={s} onNavigate={onClose} />
+          ))}
+        </nav>
+      </aside>
+    </>
   );
 }

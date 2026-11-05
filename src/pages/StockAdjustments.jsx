@@ -116,7 +116,7 @@ export default function StockAdjustments() {
           {form.product && form.warehouse && (
             <p className="text-xs text-slate-500 -mt-1">Current stock in this warehouse: <span className="font-figures">{currentStock()}</span></p>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-xs font-medium text-slate-600 mb-1">Direction</span>
               <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })} className="input">

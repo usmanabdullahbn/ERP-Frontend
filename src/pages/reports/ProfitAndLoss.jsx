@@ -51,7 +51,7 @@ export default function ProfitAndLoss() {
   return (
     <PageLayout title="Profit &amp; Loss" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">To</span>
@@ -87,7 +87,7 @@ export default function ProfitAndLoss() {
             ))}
             <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Expense</span><span className="font-figures text-ledger-rose">{money(data.totalExpense)}</span></div>
           </div>
-          <div className="md:col-span-2 bg-ink-900 rounded-xl p-5 flex justify-between items-center">
+          <div className="md:col-span-2 bg-ink-900 rounded-xl p-5 flex flex-wrap justify-between items-center gap-2">
             <span className="text-white font-display">Net Profit</span>
             <span className={`font-figures text-xl font-semibold ${data.netProfit >= 0 ? 'text-ledger-teal' : 'text-ledger-rose'}`}>{money(data.netProfit)}</span>
           </div>

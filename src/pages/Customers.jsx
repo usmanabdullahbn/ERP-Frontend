@@ -164,16 +164,16 @@ export default function Customers() {
         <form onSubmit={save} className="flex flex-col gap-3">
           {error && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
           <Field label="Name"><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" /></Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" /></Field>
             <Field label="Phone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" /></Field>
           </div>
           <Field label="Address"><textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" rows={2} /></Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Tax Number"><input value={form.taxNumber} onChange={(e) => setForm({ ...form, taxNumber: e.target.value })} className="input" /></Field>
             <Field label="Customer Discount %"><input type="number" min="0" max="100" step="0.01" value={form.discountRate} onChange={(e) => setForm({ ...form, discountRate: Number(e.target.value) })} className="input font-figures" /></Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Credit Limit"><input type="number" min="0" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} className="input font-figures" /></Field>
             {!editing && (
               <Field label="Opening Balance (amount owed to you)">
@@ -221,26 +221,28 @@ export default function Customers() {
               <span className="text-slate-500">Opening balance</span>
               <span className="font-figures">{money(statement.openingBalance)}</span>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                  <th className="py-2">Date</th><th>Type</th><th>Ref</th>
-                  <th className="text-right">Debit</th><th className="text-right">Credit</th><th className="text-right">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statement.entries.map((e, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="py-2">{new Date(e.date).toLocaleDateString()}</td>
-                    <td>{e.type}</td>
-                    <td>{e.ref}</td>
-                    <td className="text-right font-figures">{e.debit ? money(e.debit) : ''}</td>
-                    <td className="text-right font-figures">{e.credit ? money(e.credit) : ''}</td>
-                    <td className="text-right font-figures font-medium">{money(e.balance)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                    <th className="py-2 pr-3">Date</th><th className="pr-3">Type</th><th className="pr-3">Ref</th>
+                    <th className="text-right pr-3">Debit</th><th className="text-right pr-3">Credit</th><th className="text-right">Balance</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {statement.entries.map((e, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-2 pr-3 whitespace-nowrap">{new Date(e.date).toLocaleDateString()}</td>
+                      <td className="pr-3 whitespace-nowrap">{e.type}</td>
+                      <td className="pr-3 whitespace-nowrap">{e.ref}</td>
+                      <td className="text-right font-figures pr-3 whitespace-nowrap">{e.debit ? money(e.debit) : ''}</td>
+                      <td className="text-right font-figures pr-3 whitespace-nowrap">{e.credit ? money(e.credit) : ''}</td>
+                      <td className="text-right font-figures font-medium whitespace-nowrap">{money(e.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="flex justify-between text-sm mt-3 pt-3 border-t border-slate-200 font-medium">
               <span>Closing balance</span>
               <span className="font-figures">{money(statement.closingBalance)}</span>

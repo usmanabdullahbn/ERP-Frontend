@@ -88,17 +88,17 @@ export default function JournalEntryView() {
 
       {entry && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-card">
-          <div className="px-6 py-5 border-b border-slate-200 flex flex-wrap items-start justify-between gap-4">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-200 flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-500">Journal Voucher</p>
-              <h2 className="text-2xl font-semibold text-slate-900 font-figures">{entry.entryNumber}</h2>
+              <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 font-figures">{entry.entryNumber}</h2>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${entry.isReversed ? 'bg-ledger-roseLight text-ledger-rose' : 'bg-emerald-50 text-emerald-700'}`}>
               {entry.isReversed ? 'Reversed' : 'Posted'}
             </span>
           </div>
 
-          <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-5 text-sm border-b border-slate-200">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5 text-sm border-b border-slate-200">
             <div>
               <p className="text-slate-500 text-xs">Date</p>
               <p className="font-medium">{new Date(entry.date).toLocaleDateString()}</p>
@@ -125,30 +125,30 @@ export default function JournalEntryView() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-                  <th className="px-6 py-3">Account</th>
-                  <th className="px-6 py-3">Memo</th>
-                  <th className="px-6 py-3 text-right">Debit</th>
-                  <th className="px-6 py-3 text-right">Credit</th>
+                  <th className="px-4 sm:px-6 py-3">Account</th>
+                  <th className="px-4 sm:px-6 py-3">Memo</th>
+                  <th className="px-4 sm:px-6 py-3 text-right">Debit</th>
+                  <th className="px-4 sm:px-6 py-3 text-right">Credit</th>
                 </tr>
               </thead>
               <tbody>
                 {entry.lines.map((l, i) => (
                   <tr key={i} className="border-b border-slate-100">
-                    <td className="px-6 py-3">
+                    <td className="px-4 sm:px-6 py-3">
                       <span className="font-figures text-slate-500 mr-2">{l.account?.code}</span>
                       {l.account?.name}
                     </td>
-                    <td className="px-6 py-3 text-slate-500">{l.memo}</td>
-                    <td className="px-6 py-3 text-right font-figures">{l.debit ? money(l.debit) : ''}</td>
-                    <td className="px-6 py-3 text-right font-figures">{l.credit ? money(l.credit) : ''}</td>
+                    <td className="px-4 sm:px-6 py-3 text-slate-500">{l.memo}</td>
+                    <td className="px-4 sm:px-6 py-3 text-right font-figures whitespace-nowrap">{l.debit ? money(l.debit) : ''}</td>
+                    <td className="px-4 sm:px-6 py-3 text-right font-figures whitespace-nowrap">{l.credit ? money(l.credit) : ''}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-ink-800 font-semibold">
-                  <td className="px-6 py-3" colSpan={2}>Total</td>
-                  <td className="px-6 py-3 text-right font-figures">{money(entry.totalDebit)}</td>
-                  <td className="px-6 py-3 text-right font-figures">{money(entry.totalCredit)}</td>
+                  <td className="px-4 sm:px-6 py-3" colSpan={2}>Total</td>
+                  <td className="px-4 sm:px-6 py-3 text-right font-figures whitespace-nowrap">{money(entry.totalDebit)}</td>
+                  <td className="px-4 sm:px-6 py-3 text-right font-figures whitespace-nowrap">{money(entry.totalCredit)}</td>
                 </tr>
               </tfoot>
             </table>

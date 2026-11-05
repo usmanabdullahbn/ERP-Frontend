@@ -524,24 +524,26 @@ export default function Receipts({ mode }) {
             </div>
 
             {detail.allocations?.length > 0 && (
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                    <th className="py-2 font-semibold">Applied to invoice</th>
-                    <th className="text-right font-semibold">Amount</th>
-                    <th className="text-right font-semibold">Discount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.allocations.map((alloc, i) => (
-                    <tr key={alloc.invoice?._id || i} className="border-b border-slate-100">
-                      <td className="py-2">{alloc.invoice?.invoiceNumber || 'Unallocated'}</td>
-                      <td className="text-right font-figures">{money(alloc.amount)}</td>
-                      <td className="text-right font-figures">{alloc.discount ? money(alloc.discount) : '—'}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                      <th className="py-2 font-semibold">Applied to invoice</th>
+                      <th className="text-right font-semibold">Amount</th>
+                      <th className="text-right font-semibold">Discount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {detail.allocations.map((alloc, i) => (
+                      <tr key={alloc.invoice?._id || i} className="border-b border-slate-100">
+                        <td className="py-2">{alloc.invoice?.invoiceNumber || 'Unallocated'}</td>
+                        <td className="text-right font-figures">{money(alloc.amount)}</td>
+                        <td className="text-right font-figures">{alloc.discount ? money(alloc.discount) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             <div className="border-t border-slate-200 pt-3">

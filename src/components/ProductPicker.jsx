@@ -73,7 +73,7 @@ export default function ProductPicker({ products: allProducts, value, onChange, 
       />
       <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       {open && (
-        <div ref={listRef} className="absolute z-30 mt-1 w-full min-w-[280px] max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1">
+        <div ref={listRef} className="absolute z-30 mt-1 w-full sm:min-w-[280px] max-w-[calc(100vw-2rem)] max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1">
           {matches.length === 0 && (
             <div className="px-3 py-2 text-sm text-slate-400">{products.length === 0 ? 'No products.' : 'No matching product.'}</div>
           )}

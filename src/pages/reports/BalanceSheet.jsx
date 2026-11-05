@@ -50,7 +50,7 @@ export default function BalanceSheet() {
   return (
     <PageLayout title="Balance Sheet" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">As of</span>
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="input" /></label>
         <button onClick={run} disabled={loading} className="btn-primary disabled:opacity-60">{loading ? 'Running…' : 'Run Report'}</button>
@@ -87,7 +87,7 @@ export default function BalanceSheet() {
               <div className="flex justify-between text-sm font-semibold pt-2 mt-2 border-t border-slate-200"><span>Total Equity</span><span className="font-figures">{money(data.totalEquity)}</span></div>
             </div>
           </div>
-          <div className={`md:col-span-2 rounded-xl p-5 flex justify-between items-center ${data.balanced ? 'bg-ink-900' : 'bg-ledger-rose'}`}>
+          <div className={`md:col-span-2 rounded-xl p-5 flex flex-wrap justify-between items-center gap-2 ${data.balanced ? 'bg-ink-900' : 'bg-ledger-rose'}`}>
             <span className="text-white font-display">{data.balanced ? 'Balanced ✓' : 'Out of balance — check your postings'}</span>
             <span className="text-white font-figures text-sm">Assets {money(data.totalAssets)} = Liabilities + Equity {money(data.totalLiabilities + data.totalEquity)}</span>
           </div>

@@ -55,7 +55,7 @@ export default function TrialBalance() {
   return (
     <PageLayout title="Trial Balance" actions={data && <ReportExportButtons onPdf={exportPdf} onExcel={exportExcel} />}>
       {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3 mb-4">
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">From</span>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" /></label>
         <label className="block"><span className="block text-xs font-medium text-slate-600 mb-1">To</span>
