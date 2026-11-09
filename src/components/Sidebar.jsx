@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Truck, Package, Landmark, BookOpen, BarChart3, ShieldCheck, ChevronDown, X
 } from 'lucide-react';
@@ -127,7 +127,7 @@ export default function Sidebar({ open = false, onClose }) {
         }`}
       >
         <div className="px-5 mb-6 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <Link to="/" onClick={onClose} className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-ledger-teal flex items-center justify-center font-display font-bold text-white text-sm">
               L
             </div>
@@ -135,7 +135,7 @@ export default function Sidebar({ open = false, onClose }) {
               <p className="font-display text-white font-semibold leading-tight">Ledgerline</p>
               <p className="text-[11px] text-slate-400 leading-tight">ERP &amp; Accounting</p>
             </div>
-          </div>
+          </Link>
           {onClose && (
             <button
               type="button"
