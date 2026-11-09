@@ -53,7 +53,9 @@ const SECTIONS = [
     title: 'Reports',
     perm: ['reports.view'],
     items: [
-      { to: '/reports/stock-summary', label: 'Stock Summary', icon: BarChart3 },
+      { to: '/reports/profit-and-loss', label: 'Profit & Loss', icon: BarChart3 },
+      { to: '/reports/sales-profit-loss', label: 'Sales Profit & Margin' },
+      { to: '/reports/stock-summary', label: 'Stock Summary' },
       { to: '/reports/item-activity', label: 'Item Activity' },
       { to: '/reports/pending-orders', label: 'Pending Orders' },
       { to: '/reports/pending-purchase-orders', label: 'Pending Purchase Orders' },
