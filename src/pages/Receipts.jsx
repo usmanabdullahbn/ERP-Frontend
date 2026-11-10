@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Pencil, Plus, Printer, Trash2, ArrowLeft } from 'lucide-react';
+import { Pencil, Plus, Printer, Trash2, ArrowLeft, FileText, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -8,10 +8,21 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, todayLocalISODate, activeOrSelected } from '../components/ui';
-import { printDocument, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel } from '../components/printDocument';
+import { printDocument, partyOf, statusLabel } from '../components/printDocument';
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 const idOf = (ref) => (ref && typeof ref === 'object' ? ref._id : ref);
+
+const PAYMENT_METHODS = [
+  { value: 'BANK_TRANSFER', label: 'Bank Transfer', refHint: 'Transaction / IBFT / UTR ID…' },
+  { value: 'CASH', label: 'Cash', refHint: 'Cash voucher or slip no.…' },
+  { value: 'CHEQUE', label: 'Cheque', refHint: 'Cheque number & bank…' },
+  { value: 'ONLINE', label: 'Online', refHint: 'Gateway / wallet reference…' },
+  { value: 'CARD', label: 'Card', refHint: 'POS / card approval code…' },
+  { value: 'OTHER', label: 'Other', refHint: 'Reference no.…' }
+];
+
+const methodLabel = (val) => PAYMENT_METHODS.find((m) => m.value === val)?.label || statusLabel(val);
 
 /*
   /receipts lists receipts (detail opens in a modal); /receipts/new and
@@ -34,6 +45,7 @@ export default function Receipts({ mode }) {
   const [bankAccount, setBankAccount] = useState('');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
   const [date, setDate] = useState(todayLocalISODate());
   const [method, setMethod] = useState('BANK_TRANSFER');
   const [allocations, setAllocations] = useState({});
@@ -116,6 +128,7 @@ export default function Receipts({ mode }) {
     setBankAccount('');
     setAmount('');
     setReference('');
+    setNotes('');
     setDate(todayLocalISODate());
     setMethod('BANK_TRANSFER');
     setAllocations({});
@@ -133,6 +146,7 @@ export default function Receipts({ mode }) {
     setBankAccount(idOf(receipt.bankAccount) || '');
     setAmount(receipt.amount || '');
     setReference(receipt.reference || '');
+    setNotes(receipt.notes || '');
     setDate(receipt.date ? new Date(receipt.date).toISOString().slice(0, 10) : todayLocalISODate());
     setMethod(receipt.method || 'BANK_TRANSFER');
     const initial = {};
@@ -168,8 +182,10 @@ export default function Receipts({ mode }) {
   const unallocated = round2(amountValue - allocatedTotal);
   const discountTotal = round2(Object.values(discounts).reduce((s, v) => s + (Number(v) || 0), 0));
   const outstanding = round2(openInvoices.reduce((s, inv) => s + Math.max(dueFor(inv), 0), 0));
+  const totalInvoiceGrand = round2(openInvoices.reduce((s, inv) => s + Number(inv.grandTotal || 0), 0));
   const overAllocated = allocatedTotal > amountValue;
   const remainingFor = (inv) => round2(dueFor(inv) - Number(allocations[inv._id] || 0) - Number(discounts[inv._id] || 0));
+  const totalRemaining = round2(openInvoices.reduce((s, inv) => s + remainingFor(inv), 0));
   const overSettled = openInvoices.some((inv) => remainingFor(inv) < 0);
 
   useEffect(() => {
@@ -184,6 +200,22 @@ export default function Receipts({ mode }) {
   // Short payment: whatever the cash doesn't cover becomes discount.
   const writeOffRest = (inv) => setDiscount(inv._id, Math.max(round2(dueFor(inv) - Number(allocations[inv._id] || 0)), 0));
 
+  const applyAllInFull = () => {
+    const next = {};
+    let sum = 0;
+    openInvoices.forEach((inv) => {
+      const needed = Math.max(round2(dueFor(inv) - Number(discounts[inv._id] || 0)), 0);
+      if (needed > 0) {
+        next[inv._id] = needed;
+        sum = round2(sum + needed);
+      }
+    });
+    setAllocationsTouched(true);
+    setAllocations(next);
+    setAmount(sum ? String(sum) : '');
+    setAmountTouched(true);
+  };
+
   const save = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -195,7 +227,7 @@ export default function Receipts({ mode }) {
       .filter((a) => a.amount > 0 || a.discount > 0);
     setSubmitting(true);
     try {
-      const payload = { customer, bankAccount, amount: Number(amount), reference, date, method, allocations: allocList };
+      const payload = { customer, bankAccount, amount: Number(amount), reference, notes, date, method, allocations: allocList };
       if (editingReceipt) {
         await api.put(`/receipts/${editingReceipt._id}`, payload);
       } else {
@@ -254,6 +286,7 @@ export default function Receipts({ mode }) {
   };
 
   const money = formatMoney;
+  const activeMethodObj = PAYMENT_METHODS.find((m) => m.value === method) || PAYMENT_METHODS[0];
 
   const columns = [
     { key: 'receiptNumber', label: 'Receipt #' },
@@ -261,7 +294,15 @@ export default function Receipts({ mode }) {
     { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'bankAccount', label: 'Deposited to', render: (r) => r.bankAccount?.name },
     { key: 'amount', label: 'Amount', align: 'right', mono: true, render: (r) => money(r.amount) },
-    { key: 'method', label: 'Method' },
+    {
+      key: 'method',
+      label: 'Method',
+      render: (r) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
+          {methodLabel(r.method)}
+        </span>
+      )
+    },
     {
       key: 'actions',
       label: 'Actions',
@@ -281,7 +322,7 @@ export default function Receipts({ mode }) {
 
   const field = (label, control, hint) => (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-600 mb-1">{label}</span>
+      <span className="block text-xs font-medium text-slate-600 mb-1.5">{label}</span>
       {control}
       {hint && <span className="block text-xs text-slate-400 mt-1">{hint}</span>}
     </label>
@@ -306,67 +347,223 @@ export default function Receipts({ mode }) {
           </Link>
           {error && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg">{error}</div>}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-            <div className="lg:col-span-2 flex flex-col gap-4">
-              <section className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
-                <h2 className="font-display text-ink-800 mb-4">Receipt details</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {field('Customer', (
-                    <select required value={customer} onChange={(e) => { setCustomer(e.target.value); setAllocations({}); setDiscounts({}); setAllocationsTouched(false); }} className="input">
-                      <option value="">Select customer…</option>
-                      {activeOrSelected(customers, customer).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                    </select>
-                  ), customer ? `Outstanding: ${money(outstanding)} across ${openInvoices.length} invoice(s)` : null)}
-                  {field('Date', <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />)}
-                  {field('Amount Received', (
-                    <input required type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => { setAmount(e.target.value); setAmountTouched(e.target.value !== ''); }} className="input font-figures text-lg" />
-                  ))}
-                  {field('Deposit to', (
-                    <select required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="input">
-                      <option value="">Select account…</option>
-                      {bankAccounts.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}
-                    </select>
-                  ))}
-                  {field('Method', (
-                    <select value={method} onChange={(e) => setMethod(e.target.value)} className="input">
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
-                      <option value="CASH">Cash</option>
-                      <option value="CHEQUE">Cheque</option>
-                      <option value="CARD">Card</option>
-                      <option value="ONLINE">Online</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  ))}
-                  {field('Reference', <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Cheque no., transaction ID…" className="input" />)}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+            <div className="lg:col-span-2 flex flex-col gap-5">
+              {/* STEP 1: RECEIPT DETAILS */}
+              <section className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-display text-sm font-semibold text-ink-800">Receipt Details</h2>
+                    <p className="text-xs text-slate-400">Customer, deposit account, payment method &amp; reference</p>
+                  </div>
+                  {editingReceipt?.receiptNumber && (
+                    <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600">
+                      {editingReceipt.receiptNumber}
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {field('Customer', (
+                      <select
+                        required
+                        value={customer}
+                        onChange={(e) => {
+                          setCustomer(e.target.value);
+                          setAllocations({});
+                          setDiscounts({});
+                          setAllocationsTouched(false);
+                        }}
+                        className="input"
+                      >
+                        <option value="">Select customer…</option>
+                        {activeOrSelected(customers, customer).map((c) => (
+                          <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+                        ))}
+                      </select>
+                    ))}
+                    {field('Receipt Date', (
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+                    ))}
+                  </div>
+
+                  {/* Customer Outstanding Strip */}
+                  {customer && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="text-xs text-slate-500">
+                          Open Invoices: <span className="font-semibold text-ink-800">{openInvoices.length}</span>
+                        </div>
+                        <span className="text-slate-300">|</span>
+                        <div className="text-xs text-slate-500">
+                          Total Outstanding: <span className="font-figures font-semibold text-ink-900">Rs. {money(outstanding)}</span>
+                        </div>
+                      </div>
+                      {outstanding > 0 && (
+                        <button
+                          type="button"
+                          onClick={applyAllInFull}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-ledger-teal hover:underline"
+                        >
+                          <Sparkles size={13} /> Receive full balance (Rs. {money(outstanding)})
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {field('Amount Received', (
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                          Rs.
+                        </span>
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={amount}
+                          onChange={(e) => {
+                            setAmount(e.target.value);
+                            setAmountTouched(e.target.value !== '');
+                          }}
+                          className="input pl-9 font-figures font-semibold"
+                        />
+                      </div>
+                    ), !amountTouched && allocatedTotal > 0 ? 'Auto-filled from invoice allocations below' : null)}
+                    {field('Deposit To (Bank / Cash)', (
+                      <select required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="input">
+                        <option value="">Select account…</option>
+                        {bankAccounts.map((b) => (
+                          <option key={b._id} value={b._id}>{b.name}{b.bankName ? ` — ${b.bankName}` : ''}</option>
+                        ))}
+                      </select>
+                    ))}
+                  </div>
+
+                  {/* Quick Payment Method Pills */}
+                  <div>
+                    <span className="block text-xs font-medium text-slate-600 mb-1.5">Payment Method</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                      {PAYMENT_METHODS.map((m) => {
+                        const active = method === m.value;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            onClick={() => setMethod(m.value)}
+                            className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all text-center ${
+                              active
+                                ? 'border-ledger-teal bg-ledger-tealLight text-ledger-teal shadow-xs'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {field('Reference #', (
+                      <input
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        placeholder={activeMethodObj.refHint}
+                        className="input"
+                      />
+                    ))}
+                    {field('Notes / Narration (Optional)', (
+                      <input
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Shown on printed receipt & sales journal…"
+                        className="input"
+                      />
+                    ))}
+                  </div>
                 </div>
               </section>
 
+              {/* STEP 2: APPLY AGAINST INVOICES */}
               <section className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-b border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60">
                   <div>
-                    <h2 className="font-display text-ink-800">Apply against invoices</h2>
-                    <p className="text-xs text-slate-400">Optional — anything not applied stays as an advance. Use Discount to write off a short payment.</p>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display text-sm font-semibold text-ink-800">Apply Against Invoices</h2>
+                      {customer && openInvoices.length > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-700 font-medium">
+                          {openInvoices.length} open
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">Optional — any unapplied amount stays as a customer advance. Use Discount to write off short payments.</p>
                   </div>
                   {openInvoices.length > 0 && (
-                    <div className="flex gap-2">
-                      <button type="button" disabled={!amountValue} onClick={() => { setAllocationsTouched(true); setAllocations(autoAllocateInvoices(amount, openInvoices)); }} className="btn-ghost text-xs disabled:opacity-50">Auto-apply (oldest first)</button>
-                      <button type="button" onClick={() => { setAllocationsTouched(true); setAllocations({}); setDiscounts({}); }} className="btn-ghost text-xs">Clear</button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={!amountValue}
+                        onClick={() => {
+                          setAllocationsTouched(true);
+                          setAllocations(autoAllocateInvoices(amount, openInvoices));
+                        }}
+                        className="btn-ghost text-xs py-1.5 px-2.5 border border-slate-200 bg-white disabled:opacity-50"
+                      >
+                        Auto-apply (oldest first)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyAllInFull}
+                        className="btn-ghost text-xs py-1.5 px-2.5 border border-slate-200 bg-white"
+                      >
+                        Apply all in full
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAllocationsTouched(true);
+                          setAllocations({});
+                          setDiscounts({});
+                        }}
+                        className="btn-ghost text-xs py-1.5 px-2.5 text-slate-500 hover:text-ledger-rose"
+                      >
+                        Clear
+                      </button>
                     </div>
                   )}
                 </div>
-                {!customer && <div className="px-5 py-8 text-center text-sm text-slate-400">Select a customer to see their open invoices.</div>}
-                {customer && openInvoices.length === 0 && <div className="px-5 py-8 text-center text-sm text-slate-400">This customer has no open invoices.</div>}
+
+                {!customer && (
+                  <div className="px-5 py-10 text-center">
+                    <FileText size={28} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm font-medium text-slate-500">No customer selected</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Choose a customer above to view and settle their open invoices.</p>
+                  </div>
+                )}
+
+                {customer && openInvoices.length === 0 && (
+                  <div className="px-5 py-10 text-center">
+                    <CheckCircle2 size={28} className="mx-auto text-ledger-teal/60 mb-2" />
+                    <p className="text-sm font-medium text-slate-600">No open invoices for this customer</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Saving this receipt will record the full amount as an advance on their account.</p>
+                  </div>
+                )}
+
                 {customer && openInvoices.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 bg-slate-50/40 text-left text-xs uppercase tracking-wide text-slate-500">
                           <th className="px-4 py-3 font-medium">Invoice #</th>
-                          <th className="px-4 py-3 font-medium">Date</th>
-                          <th className="px-4 py-3 font-medium text-right">Total</th>
-                          <th className="px-4 py-3 font-medium text-right">Balance Due</th>
-                          <th className="px-4 py-3 font-medium text-right">Apply</th>
-                          <th className="px-4 py-3 font-medium text-right">Discount</th>
+                          <th className="px-3 py-3 font-medium">Date</th>
+                          <th className="px-3 py-3 font-medium text-right">Total</th>
+                          <th className="px-3 py-3 font-medium text-right">Balance Due</th>
+                          <th className="px-3 py-3 font-medium text-right">Amount to Apply</th>
+                          <th className="px-3 py-3 font-medium text-right">Discount</th>
                           <th className="px-4 py-3 font-medium text-right">Remaining</th>
                         </tr>
                       </thead>
@@ -374,81 +571,163 @@ export default function Receipts({ mode }) {
                         {openInvoices.map((inv) => {
                           const due = dueFor(inv);
                           const remaining = remainingFor(inv);
+                          const hasApplied = Number(allocations[inv._id] || 0) > 0 || Number(discounts[inv._id] || 0) > 0;
                           return (
-                            <tr key={inv._id} className="border-b border-slate-100 last:border-0">
-                              <td className="px-4 py-2.5 font-medium">{inv.invoiceNumber}</td>
-                              <td className="px-4 py-2.5 text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
-                              <td className="px-4 py-2.5 text-right font-figures">{money(inv.grandTotal)}</td>
-                              <td className="px-4 py-2.5 text-right font-figures">{money(due)}</td>
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center justify-end gap-2">
-                                  <button type="button" onClick={() => setAllocation(inv._id, Math.max(round2(due - Number(discounts[inv._id] || 0)), 0))} className="text-xs text-ledger-teal hover:underline whitespace-nowrap" title="Apply the full balance">Full</button>
+                            <tr
+                              key={inv._id}
+                              className={`border-b border-slate-100 last:border-0 transition-colors ${
+                                hasApplied ? 'bg-ledger-tealLight/20' : 'hover:bg-slate-50/60'
+                              }`}
+                            >
+                              <td className="px-4 py-2.5 font-medium text-ink-900 whitespace-nowrap">{inv.invoiceNumber}</td>
+                              <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{new Date(inv.date).toLocaleDateString()}</td>
+                              <td className="px-3 py-2.5 text-right font-figures text-slate-500">{money(inv.grandTotal)}</td>
+                              <td className="px-3 py-2.5 text-right font-figures font-medium text-ink-900">{money(due)}</td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAllocation(inv._id, Math.max(round2(due - Number(discounts[inv._id] || 0)), 0))}
+                                    className="px-2 py-1 rounded bg-slate-100 hover:bg-ledger-tealLight text-ledger-teal font-medium text-xs transition-colors whitespace-nowrap"
+                                    title="Apply the full balance due"
+                                  >
+                                    Full
+                                  </button>
                                   <input
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
-                                    className={`input font-figures w-28 text-right ${remaining < 0 ? 'border-ledger-rose' : ''}`}
+                                    className={`input font-figures w-28 text-right py-1.5 ${remaining < 0 ? 'border-ledger-rose' : ''}`}
                                     value={allocations[inv._id] ?? ''}
                                     onChange={(e) => setAllocation(inv._id, e.target.value)}
                                   />
                                 </div>
                               </td>
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center justify-end gap-2">
-                                  <button type="button" onClick={() => writeOffRest(inv)} className="text-xs text-ledger-teal hover:underline whitespace-nowrap" title="Write off whatever the payment doesn't cover">Write off</button>
+                              <td className="px-3 py-2.5">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => writeOffRest(inv)}
+                                    className="px-2 py-1 rounded bg-slate-100 hover:bg-ledger-tealLight text-slate-600 hover:text-ledger-teal font-medium text-xs transition-colors whitespace-nowrap"
+                                    title="Write off remaining balance as settlement discount"
+                                  >
+                                    Write off
+                                  </button>
                                   <input
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
-                                    className={`input font-figures w-28 text-right ${remaining < 0 ? 'border-ledger-rose' : ''}`}
+                                    className={`input font-figures w-24 text-right py-1.5 ${remaining < 0 ? 'border-ledger-rose' : ''}`}
                                     value={discounts[inv._id] ?? ''}
                                     onChange={(e) => setDiscount(inv._id, e.target.value)}
                                   />
                                 </div>
                               </td>
-                              <td className={`px-4 py-2.5 text-right font-figures ${remaining < 0 ? 'text-ledger-rose' : remaining === 0 ? 'text-ledger-teal' : ''}`}>
-                                {remaining === 0 ? 'Settled' : money(remaining)}
+                              <td className="px-4 py-2.5 text-right font-figures whitespace-nowrap">
+                                {remaining === 0 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-ledger-tealLight text-ledger-teal">
+                                    Settled
+                                  </span>
+                                ) : remaining < 0 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-ledger-roseLight text-ledger-rose">
+                                    {money(remaining)}
+                                  </span>
+                                ) : (
+                                  <span className="text-ink-800">{money(remaining)}</span>
+                                )}
                               </td>
                             </tr>
                           );
                         })}
                       </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-xs">
+                          <td colSpan={2} className="px-4 py-2.5 text-slate-600 uppercase">Total ({openInvoices.length} invoice{openInvoices.length === 1 ? '' : 's'})</td>
+                          <td className="px-3 py-2.5 text-right font-figures text-slate-600">{money(totalInvoiceGrand)}</td>
+                          <td className="px-3 py-2.5 text-right font-figures text-ink-900">{money(outstanding)}</td>
+                          <td className="px-3 py-2.5 text-right font-figures text-ledger-teal">{money(allocatedTotal)}</td>
+                          <td className="px-3 py-2.5 text-right font-figures text-ink-800">{money(discountTotal)}</td>
+                          <td className={`px-4 py-2.5 text-right font-figures ${totalRemaining < 0 ? 'text-ledger-rose' : 'text-ink-900'}`}>
+                            {money(totalRemaining)}
+                          </td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}
               </section>
             </div>
 
-            <aside className="bg-white rounded-xl border border-slate-200 shadow-card p-5 lg:sticky lg:top-4 flex flex-col gap-3">
-              <h2 className="font-display text-ink-800">Summary</h2>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Amount received</span>
-                <span className="font-figures">{money(amountValue)}</span>
+            {/* RIGHT SIDEBAR: RECEIPT SUMMARY */}
+            <aside className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden lg:sticky lg:top-4">
+              <div className="bg-ink-900 px-5 py-4 text-white">
+                <p className="text-xs uppercase tracking-wider text-slate-400">Amount Received</p>
+                <p className="font-figures text-2xl font-bold mt-1">Rs. {money(amountValue)}</p>
+                <p className="text-xs text-slate-400 mt-1">{methodLabel(method)}</p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Applied to invoices</span>
-                <span className={`font-figures ${overAllocated ? 'text-ledger-rose' : ''}`}>{money(allocatedTotal)}</span>
+
+              <div className="p-5 flex flex-col gap-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Applied to invoices</span>
+                  <span className={`font-figures font-medium ${overAllocated ? 'text-ledger-rose' : 'text-ink-900'}`}>{money(allocatedTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Discount allowed</span>
+                  <span className="font-figures text-ink-800">{money(discountTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-slate-100 pt-2.5">
+                  <span className="text-slate-600 font-medium">Invoices settled by</span>
+                  <span className="font-figures font-semibold text-ink-900">{money(allocatedTotal + discountTotal)}</span>
+                </div>
+
+                {/* Unapplied / Advance / Over-applied status box */}
+                <div
+                  className={`rounded-lg p-3 border mt-1 ${
+                    unallocated < 0
+                      ? 'bg-ledger-roseLight/60 border-rose-200 text-ledger-rose'
+                      : unallocated > 0
+                        ? 'bg-amber-50 border-amber-200 text-amber-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>{unallocated < 0 ? 'Over-applied' : 'Unapplied (Advance)'}</span>
+                    <span className="font-figures">Rs. {money(Math.abs(unallocated))}</span>
+                  </div>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    {unallocated < 0
+                      ? 'Applied total exceeds the amount received.'
+                      : unallocated > 0
+                        ? 'Will remain as an unallocated credit on the customer account.'
+                        : 'Entire receipt amount is allocated to invoices.'}
+                  </p>
+                </div>
+
+                {overSettled && (
+                  <div className="flex items-start gap-2 rounded-lg bg-ledger-roseLight p-3 text-xs text-ledger-rose">
+                    <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                    <span>Amount plus discount exceeds the balance due on one or more invoices.</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting || overAllocated || overSettled}
+                  className="btn-teal w-full py-2.5 mt-1 font-medium disabled:opacity-60"
+                >
+                  {submitting ? 'Saving…' : editingReceipt ? 'Save Changes' : 'Save Receipt'}
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => navigate('/receipts')}
+                  className="btn-ghost w-full border border-slate-200 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
               </div>
-              <div className="flex justify-between text-sm font-semibold border-t border-slate-200 pt-3">
-                <span>{unallocated < 0 ? 'Over-applied' : 'Unapplied (advance)'}</span>
-                <span className={`font-figures ${unallocated < 0 ? 'text-ledger-rose' : ''}`}>{money(Math.abs(unallocated))}</span>
-              </div>
-              {overAllocated && <p className="text-xs text-ledger-rose">Applied total is more than the amount received.</p>}
-              <div className="flex justify-between text-sm border-t border-slate-200 pt-3">
-                <span className="text-slate-500">Discount allowed</span>
-                <span className="font-figures">{money(discountTotal)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Invoices settled by</span>
-                <span className="font-figures">{money(allocatedTotal + discountTotal)}</span>
-              </div>
-              {overSettled && <p className="text-xs text-ledger-rose">Amount plus discount is more than an invoice's balance due.</p>}
-              <button type="submit" disabled={submitting || overAllocated || overSettled} className="btn-teal mt-2 disabled:opacity-60">
-                {submitting ? 'Saving…' : editingReceipt ? 'Save changes' : 'Save receipt'}
-              </button>
-              <button type="button" disabled={submitting} onClick={() => navigate('/receipts')} className="btn-ghost disabled:opacity-60">Cancel</button>
             </aside>
           </div>
         </form>
@@ -471,8 +750,8 @@ export default function Receipts({ mode }) {
             {detailError && <div className="text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
               <div>
-                <p className="text-slate-500">Customer</p>
-                <p className="font-medium">{detail.customer?.name}</p>
+                <p className="text-slate-500 text-xs">Customer</p>
+                <p className="font-medium text-ink-900">{detail.customer?.name}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={handlePrint} className="btn-ghost inline-flex items-center gap-2">
@@ -514,13 +793,19 @@ export default function Receipts({ mode }) {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-slate-500 text-xs">Method</p>
-                  <p className="font-medium">{detail.method}</p>
+                  <p className="font-medium">{methodLabel(detail.method)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-slate-500 text-xs">Reference</p>
                   <p className="font-medium">{detail.reference || '—'}</p>
                 </div>
               </div>
+              {detail.notes && (
+                <div className="text-sm border-t border-slate-100 pt-2">
+                  <p className="text-slate-500 text-xs">Notes</p>
+                  <p className="text-ink-800">{detail.notes}</p>
+                </div>
+              )}
             </div>
 
             {detail.allocations?.length > 0 && (
@@ -549,7 +834,7 @@ export default function Receipts({ mode }) {
             <div className="border-t border-slate-200 pt-3">
               <div className="flex justify-end gap-6 text-base font-semibold">
                 <span>Amount Received</span>
-                <span className="font-figures w-24 text-right">{money(detail.amount)}</span>
+                <span className="font-figures w-28 text-right">Rs. {money(detail.amount)}</span>
               </div>
             </div>
           </div>
