@@ -27,6 +27,8 @@ import Users from './pages/Users';
 import TrialBalance from './pages/reports/TrialBalance';
 import ProfitAndLoss from './pages/reports/ProfitAndLoss';
 import SalesProfitLoss from './pages/reports/SalesProfitLoss';
+import SalesSummary from './pages/reports/SalesSummary';
+import PurchaseSummary from './pages/reports/PurchaseSummary';
 import BalanceSheet from './pages/reports/BalanceSheet';
 import StockSummary from './pages/reports/StockSummary';
 import ItemActivity from './pages/reports/ItemActivity';
@@ -100,6 +102,8 @@ export default function App() {
         <Route path="/reports/trial-balance" element={<ProtectedRoute permission="reports.view"><TrialBalance /></ProtectedRoute>} />
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
         <Route path="/reports/sales-profit-loss" element={<ProtectedRoute permission="reports.view"><SalesProfitLoss /></ProtectedRoute>} />
+        <Route path="/reports/sales-summary" element={<ProtectedRoute permission="reports.view"><SalesSummary /></ProtectedRoute>} />
+        <Route path="/reports/purchase-summary" element={<ProtectedRoute permission="reports.view"><PurchaseSummary /></ProtectedRoute>} />
         <Route path="/reports/balance-sheet" element={<ProtectedRoute permission="reports.view"><BalanceSheet /></ProtectedRoute>} />
         <Route path="/reports/stock-summary" element={<ProtectedRoute permission="reports.view"><StockSummary /></ProtectedRoute>} />
         <Route path="/reports/item-activity" element={<ProtectedRoute permission="reports.view"><ItemActivity /></ProtectedRoute>} />

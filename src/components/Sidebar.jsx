@@ -55,6 +55,8 @@ const SECTIONS = [
     items: [
       { to: '/reports/profit-and-loss', label: 'Profit & Loss', icon: BarChart3 },
       { to: '/reports/sales-profit-loss', label: 'Sales Profit & Margin' },
+      { to: '/reports/sales-summary', label: 'Sales Summary' },
+      { to: '/reports/purchase-summary', label: 'Purchase Summary' },
       { to: '/reports/stock-summary', label: 'Stock Summary' },
       { to: '/reports/item-activity', label: 'Item Activity' },
       { to: '/reports/pending-orders', label: 'Pending Orders' },
