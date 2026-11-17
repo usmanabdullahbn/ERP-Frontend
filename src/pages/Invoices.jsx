@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms, roundedTotal } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms, roundedTotal, formatAltQty } from '../components/ui';
 import { printDocument, printGoodsNote, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel, docMeta } from '../components/printDocument';
 
 let lineKeySeq = 0;
@@ -286,7 +286,7 @@ export default function Invoices({ mode }) {
       status: statusLabel(detail.status),
       party: { label: 'Bill to', ...partyOf(detail.customer) },
       meta: docMeta(detail),
-      columns: LINE_COLUMNS('Price'),
+      columns: LINE_COLUMNS('Price', detail.items),
       rows: lines,
       totals: documentTotals(detail, lines, Number(detail.amountPaid || 0) > 0 ? [['Received', formatMoney(detail.amountPaid)], ['Balance due', formatMoney(detail.grandTotal - detail.amountPaid), { strong: true }]] : []),
       notes: detail.notes
@@ -440,36 +440,45 @@ export default function Invoices({ mode }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                      <th className="py-2 font-semibold">SKU</th>
-                      <th className="font-semibold">Item</th>
-                      <th className="font-semibold">Warehouse</th>
-                      <th className="text-right font-semibold">Qty</th>
-                      <th className="text-right font-semibold">Price</th>
-                      <th className="text-right font-semibold">Disc %</th>
-                      <th className="text-right font-semibold">Disc Amt</th>
-                      <th className="text-right font-semibold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.items.map((it, i) => (
-                      <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
-                        <td className="py-2 font-figures text-slate-600 whitespace-nowrap pr-3">{it.product?.sku}</td>
-                        <td>{it.product?.name}</td>
-                        <td>{it.warehouse?.name}</td>
-                        <td className="text-right font-figures">{it.quantity}</td>
-                        <td className="text-right font-figures">{money(it.unitPrice)}</td>
-                        <td className="text-right font-figures">{Math.round((it.discountRate || 0) * 100) / 100}%</td>
-                        <td className="text-right font-figures">{money(lineDiscount(it))}</td>
-                        <td className="text-right font-figures">{money(it.lineTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {(() => {
+                const hasAlt = detail.items.some((it) => Boolean(formatAltQty(it.quantity, it.product || {})));
+                const altUnits = [...new Set(detail.items.map((it) => it.product?.altUnit).filter(Boolean))];
+                const altLabel = altUnits.length === 1 ? `Qty (${altUnits[0]})` : 'Qty (alt unit)';
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
+                          <th className="py-2 font-semibold">SKU</th>
+                          <th className="font-semibold">Item</th>
+                          <th className="font-semibold">Warehouse</th>
+                          <th className="text-right font-semibold">Qty</th>
+                          {hasAlt && <th className="text-right font-semibold">{altLabel}</th>}
+                          <th className="text-right font-semibold">Price</th>
+                          <th className="text-right font-semibold">Disc %</th>
+                          <th className="text-right font-semibold">Disc Amt</th>
+                          <th className="text-right font-semibold">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.items.map((it, i) => (
+                          <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
+                            <td className="py-2 font-figures text-slate-600 whitespace-nowrap pr-3">{it.product?.sku}</td>
+                            <td>{it.product?.name}</td>
+                            <td>{it.warehouse?.name}</td>
+                            <td className="text-right font-figures">{`${it.quantity} ${it.product?.unit || ''}`.trim()}</td>
+                            {hasAlt && <td className="text-right font-figures">{formatAltQty(it.quantity, it.product || {}) || '—'}</td>}
+                            <td className="text-right font-figures">{money(it.unitPrice)}</td>
+                            <td className="text-right font-figures">{Math.round((it.discountRate || 0) * 100) / 100}%</td>
+                            <td className="text-right font-figures">{money(lineDiscount(it))}</td>
+                            <td className="text-right font-figures">{money(it.lineTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               <div className="border-t border-slate-200 pt-3 space-y-1">
                 {detail.items.some((it) => it.discountRate) && (

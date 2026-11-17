@@ -170,6 +170,7 @@ export function documentLines(items, priceKey) {
       sku: it.product?.sku || '',
       name: it.product?.name || '',
       qty: `${it.quantity} ${it.product?.unit || ''}`.trim(),
+      alt: formatAltQty(it.quantity, it.product || {}) || '—',
       price: it[priceKey],
       disc: it.discountRate ? `${Math.round(it.discountRate * 100) / 100}%` : '—',
       discAmt: discount,
@@ -179,16 +180,22 @@ export function documentLines(items, priceKey) {
   });
 }
 
-export const LINE_COLUMNS = (priceLabel) => [
-  { label: '#', key: 'n' },
-  { label: 'SKU', key: 'sku' },
-  { label: 'Item', key: 'name' },
-  { label: 'Qty', key: 'qty', align: 'right' },
-  { label: priceLabel, key: 'price', align: 'right', money: true },
-  { label: 'Disc %', key: 'disc', align: 'right' },
-  { label: 'Disc Amt', key: 'discAmt', align: 'right', money: true },
-  { label: 'Amount', key: 'amount', align: 'right', money: true }
-];
+export const LINE_COLUMNS = (priceLabel, items = []) => {
+  const hasAlt = items.some((it) => Boolean(formatAltQty(it.quantity, it.product || {})));
+  const altUnits = [...new Set(items.map((it) => it.product?.altUnit).filter(Boolean))];
+  const altLabel = altUnits.length === 1 ? `Qty (${altUnits[0]})` : 'Qty (alt unit)';
+  return [
+    { label: '#', key: 'n' },
+    { label: 'SKU', key: 'sku' },
+    { label: 'Item', key: 'name' },
+    { label: 'Qty', key: 'qty', align: 'right' },
+    ...(hasAlt ? [{ label: altLabel, key: 'alt', align: 'right' }] : []),
+    { label: priceLabel, key: 'price', align: 'right', money: true },
+    { label: 'Disc %', key: 'disc', align: 'right' },
+    { label: 'Disc Amt', key: 'discAmt', align: 'right', money: true },
+    { label: 'Amount', key: 'amount', align: 'right', money: true }
+  ];
+};
 
 /*
   Goods-only print of a document's lines — no prices. Used for the Delivery
