@@ -89,26 +89,33 @@ export function AuthProvider({ children }) {
 
   // Roles/permissions saved at login go stale when an admin changes them, so
   // re-read them from the server on load and whenever the tab regains focus.
-  useEffect(() => {
-    const refresh = () => {
-      if (!localStorage.getItem('erp_token')) return;
-      api.get('/auth/me')
-        .then(({ data }) => {
-          const fresh = normalizeUser(data);
-          localStorage.setItem('erp_user', JSON.stringify(fresh));
-          setUser(fresh);
-        })
-        .catch(() => {}); // a 401 is already handled by the API client
-    };
-    refresh();
-    window.addEventListener('focus', refresh);
-    return () => window.removeEventListener('focus', refresh);
+  const refreshUser = useCallback(() => {
+    if (!localStorage.getItem('erp_token')) return Promise.resolve(null);
+    return api
+      .get('/auth/me')
+      .then(({ data }) => {
+        const fresh = normalizeUser(data);
+        localStorage.setItem('erp_user', JSON.stringify(fresh));
+        setUser(fresh);
+        return fresh;
+      })
+      .catch(() => null);
   }, []);
 
-  const login = useCallback(async (email, password) => {
+  useEffect(() => {
+    refreshUser();
+    window.addEventListener('focus', refreshUser);
+    return () => window.removeEventListener('focus', refreshUser);
+  }, [refreshUser]);
+
+  const login = useCallback(async (email, password, companyCode = '') => {
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', { email, password });
+      const payload = { email, password };
+      if (companyCode && String(companyCode).trim()) {
+        payload.companyCode = String(companyCode).trim();
+      }
+      const { data } = await api.post('/auth/login', payload);
       const normalizedUser = normalizeUser(data.user);
       localStorage.setItem('erp_token', data.token);
       localStorage.setItem('erp_user', JSON.stringify(normalizedUser));
@@ -117,6 +124,26 @@ export function AuthProvider({ children }) {
       return { ok: true };
     } catch (err) {
       return { ok: false, message: err.response?.data?.message || 'Login failed.' };
+    } finally {
+      setLoading(false);
+    }
+  }, [scheduleAutoLogout]);
+
+  const switchCompany = useCallback(async (companyId) => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/switch-company', { companyId });
+      const normalizedUser = normalizeUser(data.user);
+      localStorage.setItem('erp_token', data.token);
+      localStorage.setItem('erp_user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
+      scheduleAutoLogout(data.token);
+      return { ok: true, user: normalizedUser };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err.response?.data?.message || 'Could not switch company.'
+      };
     } finally {
       setLoading(false);
     }
@@ -154,7 +181,19 @@ export function AuthProvider({ children }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, hasPermission, isAdmin }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        switchCompany,
+        refreshUser,
+        loading,
+        hasPermission,
+        isAdmin
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

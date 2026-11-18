@@ -23,6 +23,7 @@ import ChartOfAccounts from './pages/ChartOfAccounts';
 import Journal from './pages/Journal';
 import JournalEntryView from './pages/JournalEntryView';
 import Users from './pages/Users';
+import Companies from './pages/Companies';
 
 import TrialBalance from './pages/reports/TrialBalance';
 import ProfitAndLoss from './pages/reports/ProfitAndLoss';
@@ -118,6 +119,7 @@ export default function App() {
         <Route path="/reports/aged-receivables" element={<ProtectedRoute permission="reports.view"><AgedReceivables /></ProtectedRoute>} />
         <Route path="/reports/aged-payables" element={<ProtectedRoute permission="reports.view"><AgedPayables /></ProtectedRoute>} />
 
+        <Route path="/companies" element={<ProtectedRoute permission="users.manage"><Companies /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute permission="users.manage"><Users /></ProtectedRoute>} />
       </Routes>
     </>

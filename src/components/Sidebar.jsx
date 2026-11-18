@@ -1,6 +1,6 @@
 import { Link, NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Truck, Package, Landmark, BookOpen, BarChart3, ShieldCheck, ChevronDown, X
+  LayoutDashboard, Users, Truck, Package, Landmark, BookOpen, BarChart3, ShieldCheck, Building2, ChevronDown, X
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -74,7 +74,10 @@ const SECTIONS = [
   {
     title: 'Administration',
     perm: ['users.manage'],
-    items: [{ to: '/users', label: 'Users & Roles', icon: ShieldCheck }]
+    items: [
+      { to: '/companies', label: 'Companies', icon: Building2 },
+      { to: '/users', label: 'Users & Roles', icon: ShieldCheck }
+    ]
   }
 ];
 
