@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Pencil, Printer, Truck, Ban, ArrowLeft } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Plus, Trash2, Pencil, Printer, Truck, Ban, ArrowLeft, AlertTriangle } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import DataTable from '../components/DataTable';
@@ -29,6 +29,7 @@ export default function Invoices({ mode }) {
   const canEditDraft = (doc) => isAdmin || (canManage && doc.status === 'DRAFT');
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -53,6 +54,7 @@ export default function Invoices({ mode }) {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [detailError, setDetailError] = useState('');
   const [detailBusy, setDetailBusy] = useState(false);
+  const [stockWarnings, setStockWarnings] = useState([]);
 
   const load = () => api.get('/invoices').then((res) => setInvoices(res.data)).catch(() => setLoadError('Could not load invoices.'));
 
@@ -66,6 +68,7 @@ export default function Invoices({ mode }) {
   useEffect(() => {
     setDetail(null);
     setDetailError('');
+    setStockWarnings(Array.isArray(location.state?.stockWarnings) ? location.state.stockWarnings : []);
     if (id && !mode) openDetail({ _id: id }).catch(() => setDetailError('Could not load this invoice — it may have been deleted.'));
   }, [id, mode]);
 
@@ -187,7 +190,10 @@ export default function Invoices({ mode }) {
       setEditingInvoice(null);
       load();
       // Land on the saved invoice's own page.
-      navigate(saved?._id ? `/invoices/${saved._id}` : '/invoices');
+      navigate(
+        saved?._id ? `/invoices/${saved._id}` : '/invoices',
+        !postNow && saved?.stockWarnings?.length ? { state: { stockWarnings: saved.stockWarnings } } : undefined
+      );
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save invoice.');
     } finally {
@@ -395,6 +401,20 @@ export default function Invoices({ mode }) {
             <ArrowLeft size={15} /> Back to Sales Invoices
           </Link>
           {detailError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
+          {stockWarnings.length > 0 && (
+            <div className="mb-4 text-sm bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2.5 rounded-lg flex items-start justify-between gap-3 max-w-4xl print:hidden">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                <div>
+                  <p className="font-medium">Draft saved — insufficient stock alert</p>
+                  <ul className="mt-1 list-disc list-inside space-y-0.5">
+                    {stockWarnings.map((msg, i) => <li key={i}>{msg}</li>)}
+                  </ul>
+                </div>
+              </div>
+              <button type="button" onClick={() => setStockWarnings([])} className="text-amber-700 hover:text-amber-900 text-xs font-medium shrink-0">Dismiss</button>
+            </div>
+          )}
           {!detail && !detailError && <div className="text-sm text-slate-400 py-12 text-center">Loading…</div>}
           {detail && (
             <div className="invoice-document bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-6 flex flex-col gap-4 max-w-4xl">
