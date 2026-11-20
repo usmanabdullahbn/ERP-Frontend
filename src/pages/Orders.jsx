@@ -7,8 +7,9 @@ import DataTable from '../components/DataTable';
 import ConfirmModal from '../components/ConfirmModal';
 import Badge from '../components/Badge';
 import ProductPicker from '../components/ProductPicker';
+import DocumentDetailView from '../components/DocumentDetailView';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms, roundedTotal, formatAltQty } from '../components/ui';
+import { formatMoney, todayLocalISODate, activeOrSelected, PAYMENT_TERMS, dueDateFromTerms, roundedTotal } from '../components/ui';
 import { printDocument, printGoodsNote, documentLines, documentTotals, LINE_COLUMNS, partyOf, statusLabel, docMeta } from '../components/printDocument';
 
 let lineKeySeq = 0;
@@ -376,138 +377,30 @@ export default function Orders({ mode }) {
           {detailError && <div className="mb-4 text-sm bg-ledger-roseLight text-ledger-rose px-3 py-2 rounded-lg print:hidden">{detailError}</div>}
           {!detail && !detailError && <div className="text-sm text-slate-400 py-12 text-center">Loading…</div>}
           {detail && (
-            <div className="order-document bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-6 flex flex-col gap-4 max-w-4xl">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <h1 className="text-xl font-semibold">Sales Order</h1>
-                  <Badge status={detail.status} />
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-500 text-xs">Order Number</p>
-                    <p className="font-medium">{detail.orderNumber}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-slate-500 text-xs">Date</p>
-                    <p className="font-medium">{new Date(detail.date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-500 text-xs">Due Date</p>
-                    <p className="font-medium">{detail.dueDate ? new Date(detail.dueDate).toLocaleDateString() : '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 text-xs">Doc #</p>
-                    <p className="font-medium">{detail.docRef || '—'}</p>
-                  </div>
-                  <div className="sm:text-right">
-                    <p className="text-slate-500 text-xs">Payment Terms</p>
-                    <p className="font-medium">{detail.paymentTerms || '—'}</p>
-                  </div>
-                </div>
-                {detail.notes && (
-                  <div className="text-sm">
-                    <p className="text-slate-500 text-xs">Notes</p>
-                    <p className="whitespace-pre-wrap">{detail.notes}</p>
-                  </div>
-                )}
-
-                <div className="border-t border-slate-200 pt-3 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-slate-500 text-xs">Customer</p>
-                    <p className="font-medium">{detail.customer?.name}</p>
-                  </div>
-                  {detail.invoice && (
-                    <div className="text-right">
-                      <p className="text-slate-500 text-xs">Invoice</p>
-                      <Link to={`/invoices/${detail.invoice._id}`} className="font-medium text-ledger-teal hover:underline">{detail.invoice.invoiceNumber}</Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {(() => {
-                const hasAlt = detail.items.some((it) => Boolean(formatAltQty(it.quantity, it.product || {})));
-                const altUnits = [...new Set(detail.items.map((it) => it.product?.altUnit).filter(Boolean))];
-                const altLabel = altUnits.length === 1 ? `Qty (${altUnits[0]})` : 'Qty (alt unit)';
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="text-left text-xs uppercase text-slate-600 border-b-2 border-slate-300">
-                          <th className="py-2 font-semibold">SKU</th>
-                          <th className="font-semibold">Item</th>
-                          <th className="font-semibold">Warehouse</th>
-                          <th className="text-right font-semibold">Qty</th>
-                          {hasAlt && <th className="text-right font-semibold">{altLabel}</th>}
-                          <th className="text-right font-semibold">Price</th>
-                          <th className="text-right font-semibold">Disc %</th>
-                          <th className="text-right font-semibold">Disc Amt</th>
-                          <th className="text-right font-semibold">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.items.map((it, i) => (
-                          <tr key={it.product?._id ? `${it.product._id}-${i}` : i} className="border-b border-slate-100">
-                            <td className="py-2 font-figures text-slate-600 whitespace-nowrap pr-3">{it.product?.sku}</td>
-                            <td>{it.product?.name}</td>
-                            <td>{it.warehouse?.name}</td>
-                            <td className="text-right font-figures">{`${it.quantity} ${it.product?.unit || ''}`.trim()}</td>
-                            {hasAlt && <td className="text-right font-figures">{formatAltQty(it.quantity, it.product || {}) || '—'}</td>}
-                            <td className="text-right font-figures">{money(it.unitPrice)}</td>
-                            <td className="text-right font-figures">{Math.round((it.discountRate || 0) * 100) / 100}%</td>
-                            <td className="text-right font-figures">{money(lineDiscount(it))}</td>
-                            <td className="text-right font-figures">{money(it.lineTotal)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-
-              <div className="border-t border-slate-200 pt-3 space-y-1">
-                {detail.items.some((it) => it.discountRate) && (
-                  <>
-                    <div className="flex justify-end gap-6 text-sm">
-                      <span className="text-slate-600">Gross</span>
-                      <span className="font-figures w-28 text-right">{money(detail.items.reduce((s, it) => s + lineGross(it), 0))}</span>
-                    </div>
-                    <div className="flex justify-end gap-6 text-sm">
-                      <span className="text-slate-600">Discount</span>
-                      <span className="font-figures w-28 text-right">−{money(detail.items.reduce((s, it) => s + lineDiscount(it), 0))}</span>
-                    </div>
-                  </>
-                )}
-                <div className="flex justify-end gap-6 text-sm">
-                  <span className="text-slate-600">Subtotal</span>
-                  <span className="font-figures w-28 text-right">{money(detail.subTotal)}</span>
-                </div>
-                <div className="flex justify-end gap-6 text-sm">
-                  <span className="text-slate-600">Tax</span>
-                  <span className="font-figures w-28 text-right">{money(detail.taxTotal)}</span>
-                </div>
-                {detail.roundOff ? (
-                  <div className="flex justify-end gap-6 text-sm">
-                    <span className="text-slate-600">Round off</span>
-                    <span className="font-figures w-28 text-right">{money(detail.roundOff)}</span>
-                  </div>
-                ) : null}
-                <div className="flex justify-end gap-6 text-base font-semibold border-t border-slate-200 pt-2">
-                  <span>Total</span>
-                  <span className="font-figures w-28 text-right">{money(detail.grandTotal)}</span>
-                </div>
-              </div>
-
-              {isAdmin && !isClosed(detail) && (
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 print:hidden">
-                  <button disabled={detailBusy} onClick={() => handleConvertToInvoice(detail._id)} className="btn-teal inline-flex items-center gap-2 disabled:opacity-60">
-                    <ArrowRight size={16} /> {detailBusy ? 'Converting…' : 'Convert to invoice'}
-                  </button>
-                </div>
-              )}
-            </div>
+            <DocumentDetailView
+              doc={detail}
+              docClassName="order-document"
+              title="Sales Order"
+              numberLabel="Order Number"
+              numberValue={detail.orderNumber}
+              partyLabel="Customer"
+              partyName={detail.customer?.name}
+              linkedDoc={detail.invoice ? {
+                label: 'Invoice',
+                to: `/invoices/${detail.invoice._id}`,
+                number: detail.invoice.invoiceNumber,
+              } : null}
+              priceLabel="Price"
+              getUnitPrice={(it) => it.unitPrice}
+              lineGross={lineGross}
+              lineDiscount={lineDiscount}
+              money={money}
+              footerActions={isAdmin && !isClosed(detail) ? (
+                <button disabled={detailBusy} onClick={() => handleConvertToInvoice(detail._id)} className="btn-teal inline-flex items-center gap-2 disabled:opacity-60">
+                  <ArrowRight size={16} /> {detailBusy ? 'Converting…' : 'Convert to invoice'}
+                </button>
+              ) : null}
+            />
           )}
         </div>
       )}
