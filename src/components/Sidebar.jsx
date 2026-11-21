@@ -129,7 +129,7 @@ export default function Sidebar({ open = false, onClose }) {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-ink-900 min-h-screen flex flex-col py-5 transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-ink-900 h-full flex flex-col py-5 transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
