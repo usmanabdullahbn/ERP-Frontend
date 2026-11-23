@@ -17,7 +17,8 @@ const SECTIONS = [
       { to: '/customers', label: 'Customers', icon: Users },
       { to: '/orders', label: 'Orders' },
       { to: '/invoices', label: 'Invoices' },
-      { to: '/receipts', label: 'Receipts' }
+      { to: '/receipts', label: 'Receipts' },
+      { to: '/projects', label: 'Project Deals' }
     ]
   },
   {
@@ -68,7 +69,8 @@ const SECTIONS = [
       { to: '/reports/customer-ledger', label: 'Customer Ledger' },
       { to: '/reports/supplier-ledger', label: 'Supplier Ledger' },
       { to: '/reports/aged-receivables', label: 'Aged Receivables' },
-      { to: '/reports/aged-payables', label: 'Aged Payables' }
+      { to: '/reports/aged-payables', label: 'Aged Payables' },
+      { to: '/reports/projects', label: 'Project Report' }
     ]
   },
   {

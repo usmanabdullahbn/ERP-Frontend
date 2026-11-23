@@ -23,6 +23,8 @@ import ChartOfAccounts from './pages/ChartOfAccounts';
 import Journal from './pages/Journal';
 import JournalEntryView from './pages/JournalEntryView';
 import JournalEntryPage from './pages/JournalEntryPage';
+import ProjectSettlements from './pages/ProjectSettlements';
+import ProjectReport from './pages/reports/ProjectReport';
 import Users from './pages/Users';
 import Companies from './pages/Companies';
 
@@ -102,6 +104,10 @@ export default function App() {
         <Route path="/journal/new" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryPage /></ProtectedRoute>} />
         <Route path="/journal/:id/edit" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryPage /></ProtectedRoute>} />
         <Route path="/journal/:id" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryView /></ProtectedRoute>} />
+        <Route path="/projects" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage', 'sales.view', 'sales.manage']}><ProjectSettlements /></ProtectedRoute>} />
+        <Route path="/projects/new" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage', 'sales.view', 'sales.manage']}><ProjectSettlements mode="new" /></ProtectedRoute>} />
+        <Route path="/projects/:id" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage', 'sales.view', 'sales.manage']}><ProjectSettlements /></ProtectedRoute>} />
+        <Route path="/projects/:id/edit" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage', 'sales.view', 'sales.manage']}><ProjectSettlements mode="edit" /></ProtectedRoute>} />
 
         <Route path="/reports/trial-balance" element={<ProtectedRoute permission="reports.view"><TrialBalance /></ProtectedRoute>} />
         <Route path="/reports/profit-and-loss" element={<ProtectedRoute permission="reports.view"><ProfitAndLoss /></ProtectedRoute>} />
@@ -121,6 +127,7 @@ export default function App() {
         <Route path="/reports/supplier-ledger" element={<ProtectedRoute permission="reports.view"><SupplierLedger /></ProtectedRoute>} />
         <Route path="/reports/aged-receivables" element={<ProtectedRoute permission="reports.view"><AgedReceivables /></ProtectedRoute>} />
         <Route path="/reports/aged-payables" element={<ProtectedRoute permission="reports.view"><AgedPayables /></ProtectedRoute>} />
+        <Route path="/reports/projects" element={<ProtectedRoute permission="reports.view"><ProjectReport /></ProtectedRoute>} />
 
         <Route path="/companies" element={<ProtectedRoute permission="users.manage"><Companies /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute permission="users.manage"><Users /></ProtectedRoute>} />
