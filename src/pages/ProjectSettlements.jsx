@@ -422,107 +422,408 @@ export default function ProjectSettlements({ mode }) {
     if (!d) return;
     const isOut = d.projectType === 'OUTSOURCE';
     const clientPaid = d.clientPaidTotal ?? ((d.cashAmount || 0) + (d.bankAmount || 0));
-    const breakdownRows = [
-      {
-        item: '1. Total Client Deal / Quotation Amount',
-        details: d.reference || 'Client Quotation',
-        account: `${d.receivableAccount?.code || '1110'} — ${d.receivableAccount?.name || 'Project Accounts Receivable'}`,
-        amount: d.dealAmount
-      },
-      {
-        item: '2. Maal Sales Revenue (Alag — Linked Invoice)',
-        details: d.maalInvoice
-          ? `${d.maalInvoice.invoiceNumber} (${d.maalInvoice.customer?.name || d.customer?.name || ''}) [${d.maalInvoice.status || 'PAID'}]`
-          : 'No Linked Maal Invoice',
-        account: '4000 — Sales Revenue',
-        amount: d.maalInvoiceAmount || 0
-      },
-      {
-        item: '3. Project Extra Revenue (Deal − Maal)',
-        details: `${money(d.dealAmount)} − ${money(d.maalInvoiceAmount || 0)}`,
-        account: 'Project Revenue Share',
-        amount: d.projectCharges || 0
+    const esc = (v) =>
+      String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const companyName = import.meta.env.VITE_COMPANY_NAME || 'Hussain Aluminum & uPVC';
+    const companyAddress = import.meta.env.VITE_COMPANY_ADDRESS || '';
+    const companyPhone = import.meta.env.VITE_COMPANY_PHONE || '';
+
+    const jvs = d.journalEntries?.length ? d.journalEntries : d.journalEntry ? [d.journalEntry] : [];
+    const rcpts = d.receipts || [];
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(d.projectNumber)} ${esc(d.customer?.name || '')}</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body {
+      margin: 0;
+      padding: 12mm 12mm;
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      font-size: 12px;
+    }
+    .num { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .company-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      border-bottom: 2px solid #0f172a;
+    }
+    .company-title { font-size: 17px; font-weight: 800; color: #0f172a; letter-spacing: 0.2px; }
+    .company-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .card-shell {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .header-box {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .header-title-row { display: flex; align-items: center; gap: 10px; }
+    .header-title { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 999px;
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .badge-void { background: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+    .header-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .deal-total-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: #64748b; font-weight: 600; text-align: right; }
+    .deal-total-val { font-size: 22px; font-weight: 700; color: #0f172a; text-align: right; margin-top: 2px; }
+
+    .body-pad { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+    .info-card {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 9px;
+      padding: 12px 14px;
+    }
+    .cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8; font-weight: 600; }
+    .val-main { font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+    .val-teal { font-size: 14px; font-weight: 700; color: #0f766e; text-decoration: underline; margin-top: 4px; }
+    .val-lg { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+    .sub-line { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+    .outsource-box {
+      border: 1px solid #c7d2fe;
+      background: #eef2ff;
+      border-radius: 11px;
+      padding: 14px 16px;
+    }
+    .outsource-cap { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; color: #4338ca; }
+    .outsource-title { font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 2px; margin-bottom: 10px; }
+    .outsource-acc { font-size: 11.5px; font-weight: 400; color: #64748b; margin-left: 6px; }
+
+    .sub-card {
+      background: #ffffff;
+      border: 1px solid #e0e7ff;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .sub-card-amber {
+      background: #ffffff;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .sub-label { font-size: 11px; color: #64748b; }
+    .sub-label-amber { font-size: 11px; color: #92400e; font-weight: 500; }
+    .sub-val { font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 3px; }
+    .sub-val-indigo { font-size: 14px; font-weight: 700; color: #3730a3; margin-top: 3px; }
+    .sub-val-amber { font-size: 14px; font-weight: 700; color: #78350f; margin-top: 3px; }
+
+    .metric-emerald {
+      border: 1px solid #a7f3d0;
+      background: #ecfdf5;
+      border-radius: 9px;
+      padding: 12px 14px;
+    }
+    .metric-emerald .m-label { font-size: 11px; color: #047857; font-weight: 500; }
+    .metric-emerald .m-val { font-size: 17px; font-weight: 700; color: #065f46; margin-top: 3px; }
+
+    .metric-white {
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      border-radius: 9px;
+      padding: 12px 14px;
+    }
+    .metric-white .m-label { font-size: 11px; color: #64748b; }
+    .metric-white .m-val { font-size: 17px; font-weight: 700; color: #0f172a; margin-top: 3px; }
+    .metric-white .m-val-rose { font-size: 17px; font-weight: 700; color: #e11d48; margin-top: 3px; }
+
+    .metric-amber {
+      border: 1px solid #fde68a;
+      background: #fffbeb;
+      border-radius: 9px;
+      padding: 12px 14px;
+    }
+    .metric-amber .m-label { font-size: 11px; color: #92400e; font-weight: 500; }
+    .metric-amber .m-val { font-size: 17px; font-weight: 700; color: #78350f; margin-top: 3px; }
+
+    .section-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 12px 14px;
+      background: #ffffff;
+    }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 7px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      font-size: 11px;
+      color: #334155;
+    }
+    .pill-teal {
+      border-color: #99f6e4;
+      background: #f0fdfa;
+      color: #115e59;
+      font-weight: 600;
+    }
+
+    table.exp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.exp-table th {
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    table.exp-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+    table.exp-table .r { text-align: right; }
+
+    .notes-box {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 9px;
+      padding: 11px 14px;
+      font-size: 12px;
+      color: #334155;
+      white-space: pre-wrap;
+    }
+
+    .signs {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 36px;
+      padding-top: 12px;
+      page-break-inside: avoid;
+    }
+    .sign {
+      width: 190px;
+      border-top: 1px solid #94a3b8;
+      padding-top: 6px;
+      text-align: center;
+      font-size: 11px;
+      color: #475569;
+    }
+    .footer { margin-top: 18px; text-align: center; font-size: 10px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="company-bar">
+    <div>
+      <div class="company-title">${esc(companyName)}</div>
+      ${companyAddress || companyPhone ? `<div class="company-sub">${[companyAddress, companyPhone && `Phone: ${companyPhone}`].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    </div>
+    <div class="company-sub">Printed: ${esc(new Date().toLocaleDateString())}</div>
+  </div>
+
+  <div class="card-shell">
+    <div class="header-box">
+      <div>
+        <div class="header-title-row">
+          <h1 class="header-title">${isOut ? 'Outsource Project Deal' : 'In-House Project Deal'}</h1>
+          <span class="badge ${d.status === 'VOID' ? 'badge-void' : ''}">${esc(d.status)}</span>
+        </div>
+        <div class="header-sub">
+          Project #: <strong class="num" style="color:#0f172a">${esc(d.projectNumber)}</strong>
+          &nbsp;·&nbsp; ${esc(new Date(d.date).toLocaleDateString())}
+          ${d.reference ? ` &nbsp;·&nbsp; ${esc(d.reference)}` : ''}
+        </div>
+      </div>
+      <div>
+        <div class="deal-total-label">Total Deal Amount</div>
+        <div class="deal-total-val num">${esc(money(d.dealAmount))}</div>
+      </div>
+    </div>
+
+    <div class="body-pad">
+      <!-- ROW 1: 3 SEPARATED REVENUE & CLIENT CARDS -->
+      <div class="grid-3">
+        <div class="info-card">
+          <div class="cap">Client (Customer)</div>
+          <div class="val-main">${esc(d.customer?.name || '—')}</div>
+          <div class="sub-line">Total Quotation / Deal: <strong class="num" style="color:#0f172a">${esc(money(d.dealAmount))}</strong></div>
+        </div>
+
+        <div class="info-card">
+          <div class="cap">1. Maal Sales Revenue (Alag)</div>
+          ${
+            d.maalInvoice
+              ? `<div class="val-teal num">${esc(d.maalInvoice.invoiceNumber)} — ${esc(money(d.maalInvoiceAmount))}</div>
+                 <div class="sub-line">Billed to: ${esc(d.maalInvoice.customer?.name || d.customer?.name || '')} · Status: ${esc(d.maalInvoice.status || 'PAID')}</div>`
+              : `<div class="val-main" style="color:#64748b;font-weight:500">No Linked Maal Invoice (0.00)</div>`
+          }
+        </div>
+
+        <div class="info-card">
+          <div class="cap">2. Project Extra Revenue (Deal − Maal)</div>
+          <div class="val-lg num">${esc(money(d.projectCharges))}</div>
+          <div class="sub-line">Deal (${esc(money(d.dealAmount))}) − Maal (${esc(money(d.maalInvoiceAmount))})</div>
+        </div>
+      </div>
+
+      <!-- ROW 2: OUTSOURCE FABRICATOR SETTLEMENT BOX -->
+      ${
+        isOut
+          ? `<div class="outsource-box">
+              <div class="outsource-cap">Outsource Fabricator Settlement</div>
+              <div class="outsource-title">
+                ${esc(d.fabricatorName || d.fabricatorAccount?.name || 'Outsource Fabricator')}
+                ${d.fabricatorAccount ? `<span class="outsource-acc">(${esc(d.fabricatorAccount.code)} — ${esc(d.fabricatorAccount.name)})</span>` : ''}
+              </div>
+              <div class="grid-4">
+                <div class="sub-card">
+                  <div class="sub-label">Fabricator Quotation</div>
+                  <div class="sub-val num">${esc(money(d.fabricatorQuotation))}</div>
+                </div>
+                <div class="sub-card">
+                  <div class="sub-label">Less: Maal Inv Given</div>
+                  <div class="sub-val num" style="color:#334155">− ${esc(money(d.maalInvoiceAmount))}</div>
+                </div>
+                <div class="sub-card">
+                  <div class="sub-label">Net Payable (Quotation − Maal)</div>
+                  <div class="sub-val-indigo num">${esc(money(d.fabricatorNetCost))}</div>
+                </div>
+                <div class="sub-card-amber">
+                  <div class="sub-label-amber">Remaining to Pay Fabricator</div>
+                  <div class="sub-val-amber num">${esc(money(d.fabricatorBalanceDue))}</div>
+                </div>
+              </div>
+            </div>`
+          : ''
       }
-    ];
 
-    if (isOut) {
-      breakdownRows.push(
-        {
-          item: '4. Outsource Fabricator Quotation',
-          details: d.fabricatorName || d.fabricatorAccount?.name || 'Outsource Fabricator',
-          account: d.fabricatorAccount ? `${d.fabricatorAccount.code} — ${d.fabricatorAccount.name}` : '5050 — Outsource Fabrication',
-          amount: d.fabricatorQuotation || 0
-        },
-        {
-          item: '5. Net Payable to Fabricator (Quotation − Maal Inv)',
-          details: `${money(d.fabricatorQuotation || 0)} − ${money(d.maalInvoiceAmount || 0)}`,
-          account: d.fabricatorAccount ? `${d.fabricatorAccount.code} — ${d.fabricatorAccount.name}` : '5050 — Outsource Fabrication',
-          amount: d.fabricatorNetCost || 0
-        }
-      );
-    }
+      <!-- ROW 3: 4 COLORED METRIC CARDS -->
+      <div class="grid-4">
+        <div class="metric-emerald">
+          <div class="m-label">Net Commission Income (${esc(d.incomeAccount?.code || '4500')})</div>
+          <div class="m-val num">${esc(money(d.netProfit))}</div>
+        </div>
+        <div class="metric-white">
+          <div class="m-label">Client Paid So Far</div>
+          <div class="m-val num">${esc(money(clientPaid))}</div>
+        </div>
+        <div class="metric-amber">
+          <div class="m-label">Client Receivable Due (${esc(d.receivableAccount?.code || '1110')})</div>
+          <div class="m-val num">${esc(money(d.clientBalance))}</div>
+        </div>
+        <div class="metric-white">
+          <div class="m-label">Project Direct Costs</div>
+          <div class="m-val-rose num">${esc(money(d.totalExpenses))}</div>
+        </div>
+      </div>
 
-    (d.expenses || []).forEach((ex, idx) => {
-      breakdownRows.push({
-        item: `Direct Expense #${idx + 1}: ${ex.label || 'Expense'}`,
-        details: 'Direct Project Cost',
-        account: ex.account ? `${ex.account.code} — ${ex.account.name}` : 'Expense',
-        amount: ex.amount || 0
-      });
-    });
+      <!-- ROW 4: GENERATED JVs & RECEIPTS -->
+      ${
+        rcpts.length > 0 || jvs.length > 0
+          ? `<div class="section-box">
+              <div class="cap" style="color:#64748b">Generated Accounting Entries (JVs & Receipts)</div>
+              <div class="pills">
+                ${rcpts.map((r) => `<span class="pill pill-teal num">✓ ${esc(r.receiptNumber)} — ${esc(money(r.amount))}</span>`).join('')}
+                ${jvs.map((j) => `<span class="pill"><strong class="num" style="color:#0f766e">${esc(j.entryNumber)}</strong> ${j.reference ? `(${esc(j.reference)})` : ''}</span>`).join('')}
+              </div>
+            </div>`
+          : ''
+      }
 
-    breakdownRows.push({
-      item: '⭐ Net Commission Income (Project Margin)',
-      details: isOut
-        ? `Client Deal (${money(d.dealAmount)}) − Fabricator (${money(d.fabricatorQuotation || 0)})`
-        : `Project Rev (${money(d.projectCharges)}) − Expenses (${money(d.totalExpenses)})`,
-      account: `${d.incomeAccount?.code || '4500'} — ${d.incomeAccount?.name || 'Commission Income'}`,
-      amount: d.netProfit || 0
-    });
+      <!-- ROW 5: DIRECT EXPENSES TABLE IF ANY -->
+      ${
+        d.expenses?.length > 0
+          ? `<div class="card-shell">
+              <table class="exp-table">
+                <thead>
+                  <tr>
+                    <th>Expense Account</th>
+                    <th>Description</th>
+                    <th class="r">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${d.expenses
+                    .map(
+                      (ex) => `<tr>
+                        <td><strong>${esc(ex.account ? `${ex.account.code} — ${ex.account.name}` : 'Direct Expense')}</strong></td>
+                        <td style="color:#475569">${esc(ex.label)}</td>
+                        <td class="r num">${esc(money(ex.amount))}</td>
+                      </tr>`
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>`
+          : ''
+      }
 
-    const jvList = (d.journalEntries?.length ? d.journalEntries : d.journalEntry ? [d.journalEntry] : [])
-      .map((j) => j.entryNumber)
-      .filter(Boolean)
-      .join(', ');
+      <!-- ROW 6: NOTES IF ANY -->
+      ${
+        d.notes
+          ? `<div class="notes-box">
+              <div class="cap" style="margin-bottom:4px">Notes</div>
+              <div>${esc(d.notes)}</div>
+            </div>`
+          : ''
+      }
+    </div>
+  </div>
 
-    const totals = [
-      ['Total Client Deal', money(d.dealAmount)],
-      ['Maal Sales Revenue (4000)', money(d.maalInvoiceAmount || 0)],
-      ['Project Extra Revenue', money(d.projectCharges || 0)],
-      ['Project / Fabricator Net Cost', money(d.totalExpenses || 0)],
-      ['Net Commission Income (4500)', money(d.netProfit || 0), { strong: true }],
-      ['Client Paid / Advance Received', money(clientPaid)],
-      ['Client Remaining Receivable (1110)', money(d.clientBalance || 0), { strong: true }]
-    ];
+  <div class="signs">
+    <div class="sign">Prepared by</div>
+    <div class="sign">Approved by</div>
+    <div class="sign">Client / Fabricator Sign</div>
+  </div>
+  <div class="footer">Computer-generated Project Deal Settlement · ${esc(companyName)}</div>
+</body>
+</html>`;
 
-    if (isOut) {
-      totals.push(['Fabricator Remaining Payable', money(d.fabricatorBalanceDue || 0), { strong: true }]);
-    }
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(frame);
 
-    printDocument({
-      title: 'Project Deal',
-      number: d.projectNumber,
-      date: d.date,
-      party: partyOf('Project Client', d.customer),
-      meta: [
-        ['Project Type', isOut ? 'Outsource to Fabricator' : 'In-House Direct Deal'],
-        ...(d.reference ? [['Project / Site', d.reference]] : []),
-        ...(d.maalInvoice ? [['Maal Invoice', `${d.maalInvoice.invoiceNumber} (${money(d.maalInvoiceAmount)})`]] : []),
-        ...(isOut && (d.fabricatorName || d.fabricatorAccount) ? [['Fabricator', d.fabricatorName || d.fabricatorAccount?.name]] : []),
-        ...(jvList ? [['Journal Entries', jvList]] : []),
-        ['Status', d.status]
-      ],
-      columns: [
-        { label: 'Breakdown Item', key: 'item' },
-        { label: 'Details / Formula', key: 'details' },
-        { label: 'Ledger Account', key: 'account' },
-        { label: 'Amount (PKR)', key: 'amount', align: 'right', money: true }
-      ],
-      rows: breakdownRows,
-      totals,
-      notes: d.notes,
-      signs: ['Prepared by', 'Approved by', 'Client / Fabricator Sign']
-    });
+    const win = frame.contentWindow;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+
+    const appTitle = document.title;
+    document.title = [d.projectNumber, d.customer?.name].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]/g, '-');
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.title = appTitle;
+      setTimeout(() => frame.remove(), 500);
+    };
+    win.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      win.focus();
+      win.print();
+      setTimeout(cleanup, 60000);
+    }, 250);
   };
 
   const columns = [
