@@ -22,6 +22,7 @@ import Bank from './pages/Bank';
 import ChartOfAccounts from './pages/ChartOfAccounts';
 import Journal from './pages/Journal';
 import JournalEntryView from './pages/JournalEntryView';
+import JournalEntryPage from './pages/JournalEntryPage';
 import Users from './pages/Users';
 import Companies from './pages/Companies';
 
@@ -98,6 +99,8 @@ export default function App() {
         <Route path="/bank" element={<ProtectedRoute permission={['banking.view', 'banking.manage']}><Bank /></ProtectedRoute>} />
         <Route path="/chart-of-accounts" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><ChartOfAccounts /></ProtectedRoute>} />
         <Route path="/journal" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><Journal /></ProtectedRoute>} />
+        <Route path="/journal/new" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryPage /></ProtectedRoute>} />
+        <Route path="/journal/:id/edit" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryPage /></ProtectedRoute>} />
         <Route path="/journal/:id" element={<ProtectedRoute permission={['accounting.view', 'accounting.manage']}><JournalEntryView /></ProtectedRoute>} />
 
         <Route path="/reports/trial-balance" element={<ProtectedRoute permission="reports.view"><TrialBalance /></ProtectedRoute>} />

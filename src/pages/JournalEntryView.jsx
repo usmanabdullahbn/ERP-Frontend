@@ -4,7 +4,6 @@ import { ArrowLeft, Pencil, Printer, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import ConfirmModal from '../components/ConfirmModal';
-import JournalEntryForm from '../components/JournalEntryForm';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
 
@@ -20,7 +19,6 @@ export default function JournalEntryView() {
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
   const load = () => api.get(`/journal/${id}`)
     .then((res) => setEntry(res.data))
@@ -31,12 +29,6 @@ export default function JournalEntryView() {
     setLoadError('');
     load();
   }, [id]);
-
-  // Edit happens right here on the entry's page; saving refreshes it in place.
-  const handleSaved = () => {
-    setEditOpen(false);
-    load();
-  };
 
   const deleteEntry = async () => {
     try {
@@ -61,7 +53,7 @@ export default function JournalEntryView() {
           </button>
           {isAdmin && (
             <>
-              <button type="button" onClick={() => { setActionError(''); setEditOpen(true); }} className="btn-ghost inline-flex items-center gap-2 print:hidden">
+              <button type="button" onClick={() => navigate(`/journal/${id}/edit`)} className="btn-ghost inline-flex items-center gap-2 print:hidden">
                 <Pencil size={15} /> Edit
               </button>
               <button
@@ -156,13 +148,6 @@ export default function JournalEntryView() {
         </div>
       )}
       </div>
-
-      <JournalEntryForm
-        open={editOpen}
-        entry={entry}
-        onClose={() => setEditOpen(false)}
-        onSaved={handleSaved}
-      />
 
       <ConfirmModal
         open={confirmOpen}

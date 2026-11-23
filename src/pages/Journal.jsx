@@ -4,7 +4,6 @@ import { Plus, Trash2, Pencil } from 'lucide-react';
 import api from '../api/client';
 import PageLayout from '../components/PageLayout';
 import ConfirmModal from '../components/ConfirmModal';
-import JournalEntryForm from '../components/JournalEntryForm';
 import FilterBar, { matchesSearch, toLocalISODate } from '../components/FilterBar';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
@@ -16,8 +15,6 @@ export default function Journal() {
   const navigate = useNavigate();
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -35,27 +32,8 @@ export default function Journal() {
     api.get('/accounts').then((res) => setAccounts(res.data)).catch(() => setLoadError('Could not load chart of accounts.'));
   }, []);
 
-  const openCreate = () => {
-    setEditingEntry(null);
-    setFormOpen(true);
-  };
-
-  const openEdit = async (entry) => {
-    setActionError('');
-    try {
-      const { data } = await api.get(`/journal/${entry._id}`);
-      setEditingEntry(data);
-      setFormOpen(true);
-    } catch {
-      setActionError('Could not load that journal entry for editing.');
-    }
-  };
-
-  const handleSaved = () => {
-    setFormOpen(false);
-    setEditingEntry(null);
-    load();
-  };
+  const openCreate = () => navigate('/journal/new');
+  const openEdit = (entry) => navigate(`/journal/${entry._id}/edit`);
 
   const handleDeleteClick = (entry) => {
     setActionError('');
@@ -162,13 +140,6 @@ export default function Journal() {
           </tbody>
         </table>
       </div>
-
-      <JournalEntryForm
-        open={formOpen}
-        entry={editingEntry}
-        onClose={() => { setFormOpen(false); setEditingEntry(null); }}
-        onSaved={handleSaved}
-      />
 
       <ConfirmModal
         open={confirmOpen}
