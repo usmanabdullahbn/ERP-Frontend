@@ -83,7 +83,7 @@ export default function SalesProfitLoss() {
     },
     { quantity: 0, grossSale: 0, discount: 0, netSale: 0, cogs: 0, grossProfit: 0 }
   );
-  totals.marginPct = totals.netSale !== 0 ? round2((totals.grossProfit / totals.netSale) * 100) : 0;
+  totals.marginPct = totals.grossSale !== 0 ? round2((totals.grossProfit / totals.grossSale) * 100) : 0;
 
   const customerNames = customers.filter((c) => customerIds.includes(c._id)).map((c) => c.name).join(', ');
   const productNames = products.filter((p) => productIds.includes(p._id)).map((p) => p.name).join(', ');
