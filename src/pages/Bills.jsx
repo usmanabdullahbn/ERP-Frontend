@@ -88,7 +88,7 @@ export default function Bills({ mode }) {
     next[i] = { ...next[i], ...patch };
     if (patch.product) {
       const prod = products.find((p) => p._id === patch.product);
-      if (prod) { next[i].unitCost = prod.costPrice; next[i].taxRate = prod.taxRate; }
+      if (prod) { next[i].unitCost = prod.salePrice; next[i].taxRate = prod.taxRate; }
     }
     // Picking a product on the last line opens a fresh one below it, so entry
     // flows straight down without "+ Add line".
@@ -270,7 +270,7 @@ export default function Bills({ mode }) {
       status: statusLabel(detail.status),
       party: { label: 'Supplier', ...partyOf(detail.supplier) },
       meta: docMeta(detail),
-      columns: LINE_COLUMNS('Cost', detail.items),
+      columns: LINE_COLUMNS('Rate', detail.items),
       rows: lines,
       totals: documentTotals(detail, lines, Number(detail.amountPaid || 0) > 0 ? [['Paid', formatMoney(detail.amountPaid)], ['Balance due', formatMoney(detail.grandTotal - detail.amountPaid), { strong: true }]] : []),
       notes: detail.notes
@@ -389,7 +389,7 @@ export default function Bills({ mode }) {
               numberValue={detail.billNumber}
               partyLabel="Supplier"
               partyName={detail.supplier?.name}
-              priceLabel="Cost"
+              priceLabel="Rate"
               getUnitPrice={(it) => it.unitCost}
               lineGross={lineGross}
               lineDiscount={lineDiscount}
@@ -460,7 +460,7 @@ export default function Bills({ mode }) {
                 <span>Product</span>
                 <span>Warehouse</span>
                 <span>Qty</span>
-                <span>Cost</span>
+                <span>Rate</span>
                 <span>Disc %</span>
                 <span>Disc Amt</span>
                 <span>Total</span>
@@ -490,8 +490,8 @@ export default function Bills({ mode }) {
                       <input type="number" min="0" placeholder="Qty" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} className="input font-figures" />
                     </div>
                     <div className="col-span-1">
-                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Cost</span>
-                      <input type="number" min="0" placeholder="Cost" value={line.unitCost} onChange={(e) => updateLine(i, { unitCost: Number(e.target.value) })} className="input font-figures" />
+                      <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Rate</span>
+                      <input type="number" min="0" placeholder="Rate" value={line.unitCost} onChange={(e) => updateLine(i, { unitCost: Number(e.target.value) })} className="input font-figures" />
                     </div>
                     <div className="col-span-1">
                       <span className="block lg:hidden text-[11px] text-slate-500 mb-1">Disc %</span>
