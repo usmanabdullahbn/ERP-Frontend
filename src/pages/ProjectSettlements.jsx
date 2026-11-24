@@ -145,9 +145,10 @@ export default function ProjectSettlements({ mode }) {
       assetAccs.find((a) => a.code === '1100') ||
       assetAccs[0];
 
+    const activeAccs = accounts.filter((a) => a.isActive !== false);
     const preferredFab =
-      expAccs.find((a) => a.code === '5050') ||
-      expAccs.find((a) => /outsource|rashid|sajjad/i.test(a.name)) ||
+      activeAccs.find((a) => a.code === '5050') ||
+      activeAccs.find((a) => /outsource|rashid|sajjad/i.test(a.name)) ||
       expAccs[0];
 
     if (preferredIncome) setIncomeAccount((v) => v || preferredIncome._id);
@@ -275,6 +276,11 @@ export default function ProjectSettlements({ mode }) {
   const incomeAccounts = accounts.filter((a) => a.isActive !== false && a.type === 'INCOME');
   const assetAccounts = accounts.filter((a) => a.isActive !== false && a.type === 'ASSET');
   const expenseAccounts = accounts.filter((a) => a.isActive !== false && a.type === 'EXPENSE');
+  const fabricatorAccounts = accounts.filter(
+    (a) =>
+      a.isActive !== false &&
+      (a.type === 'LIABILITY' || /outsource|fabricat|rashid|sajjad/i.test(a.name) || a.type === 'EXPENSE')
+  );
 
   const updateExpense = (i, patch) => {
     const next = [...expenses];
@@ -1314,7 +1320,7 @@ export default function ProjectSettlements({ mode }) {
                     <span className="block text-xs font-medium text-slate-600 mb-1">Outsource Fabricator Account</span>
                     <select value={fabricatorAccount} onChange={(e) => setFabricatorAccount(e.target.value)} className="input">
                       <option value="">Select Fabricator Account…</option>
-                      {expenseAccounts.map((a) => (
+                      {fabricatorAccounts.map((a) => (
                         <option key={a._id} value={a._id}>{a.code} — {a.name}</option>
                       ))}
                     </select>
