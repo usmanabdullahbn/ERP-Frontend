@@ -115,16 +115,19 @@ export default function Bank() {
     { key: 'bankName', label: 'Bank' },
     { key: 'accountNumber', label: 'Account No.' },
     { key: 'type', label: 'Type' },
-    { key: 'openingBalance', label: 'Opening Bal.', align: 'right', mono: true, render: (r) => money(r.openingBalance) }
+    { key: 'openingBalance', label: 'Opening Bal.', align: 'right', mono: true, render: (r) => money(r.openingBalance) },
+    { key: 'currentBalance', label: 'Current Bal.', align: 'right', mono: true, render: (r) => <span className="font-semibold text-ink-900">{money(r.currentBalance ?? r.openingBalance)}</span> }
   ];
 
   const txnColumns = [
     { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'bankAccount', label: 'Account', render: (r) => r.bankAccount?.name },
     { key: 'type', label: 'Type' },
-    { key: 'toBankAccount', label: 'To', render: (r) => r.toBankAccount?.name || r.contraAccount?.name || '' },
-    { key: 'amount', label: 'Amount', align: 'right', mono: true, render: (r) => money(r.amount) },
-    { key: 'reference', label: 'Reference' }
+    { key: 'toBankAccount', label: 'Contra / Party', render: (r) => r.toBankAccount?.name || r.contraAccount?.name || '' },
+    { key: 'debit', label: 'In (Debit)', align: 'right', mono: true, render: (r) => r.debit ? <span className="text-ledger-teal">{money(r.debit)}</span> : '—' },
+    { key: 'credit', label: 'Out (Credit)', align: 'right', mono: true, render: (r) => r.credit ? <span className="text-ledger-rose">{money(r.credit)}</span> : '—' },
+    { key: 'reference', label: 'Reference' },
+    { key: 'notes', label: 'Description' }
   ];
 
   return (
@@ -256,8 +259,8 @@ export default function Bank() {
                 <p className="font-medium">{acctDetail.type}</p>
               </div>
               <div className="text-right">
-                <p className="text-slate-500 text-xs">Opening Balance</p>
-                <p className="font-medium font-figures">{money(acctDetail.openingBalance)}</p>
+                <p className="text-slate-500 text-xs">Current Balance</p>
+                <p className="font-semibold font-figures text-ledger-teal">{money(acctDetail.currentBalance ?? acctDetail.openingBalance)}</p>
               </div>
             </div>
 
