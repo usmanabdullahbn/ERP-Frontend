@@ -1,3 +1,5 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { formatMoney, formatDate, formatAltQty } from './ui';
 
 /*
@@ -66,7 +68,7 @@ const STYLES = `
   .footer { margin-top: 28px; text-align: center; font-size: 10px; color: #94a3b8; }
 `;
 
-function buildHtml(doc) {
+function buildHtml(doc, orientation = 'portrait') {
   const companyBlock = company.name
     ? `<div class="company-name">${esc(company.name)}</div>
        ${company.address ? `<div class="company-line">${esc(company.address)}</div>` : ''}
@@ -92,9 +94,11 @@ function buildHtml(doc) {
   const totals = (doc.totals || []).map(([label, value, opts]) =>
     `<tr class="${opts?.strong ? 'strong' : ''}"><td>${esc(label)}</td><td>${esc(value)}</td></tr>`).join('');
 
+  const pageCss = `@page { size: A4 ${orientation === 'landscape' ? 'landscape' : 'portrait'}; margin: 0; }`;
+
   // No title banner: the document starts with the party and its number/date.
   // The company block only appears when company details are configured.
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(doc.title)} ${esc(doc.number)}</title><style>${STYLES}</style></head><body>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(doc.title)} ${esc(doc.number)}</title><style>${STYLES}\n${pageCss}</style></head><body>
     ${companyBlock ? `<div class="top"><div>${companyBlock}</div></div>` : ''}
     <div class="info">
       <div class="party">
@@ -116,7 +120,199 @@ function buildHtml(doc) {
   </body></html>`;
 }
 
-export function printDocument(doc) {
+const pdfText = (v) => String(v ?? '').replace(/[–—−]/g, '-');
+
+export function documentFilename(doc) {
+  const party = doc.party || {};
+  const base = [doc.number, party.name || party.code].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]/g, '-');
+  return `${base || 'document'}.pdf`;
+}
+
+export function buildDocumentPdf(doc, orientation = 'portrait') {
+  const pdf = new jsPDF({ orientation, unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 36;
+  let y = 36;
+
+  if (company.name) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(14);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(pdfText(company.name), margin, y);
+    y += 15;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(71, 85, 105);
+    if (company.address) {
+      pdf.text(pdfText(company.address), margin, y);
+      y += 12;
+    }
+    const contactLine = [company.phone && `Phone: ${company.phone}`, company.ntn && `NTN: ${company.ntn}`].filter(Boolean).join('  |  ');
+    if (contactLine) {
+      pdf.text(pdfText(contactLine), margin, y);
+      y += 12;
+    }
+    pdf.setDrawColor(15, 23, 42);
+    pdf.setLineWidth(1.2);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 18;
+  }
+
+  // Title
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(16);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text(pdfText(doc.title || 'Document'), margin, y);
+  y += 18;
+
+  // Party (left) & Facts (right)
+  const party = doc.party || {};
+  let leftY = y;
+  if (party.label) {
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(pdfText(party.label.toUpperCase()), margin, leftY);
+    leftY += 12;
+  }
+  if (party.name) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(pdfText(party.name), margin, leftY);
+    leftY += 13;
+  }
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.setTextColor(71, 85, 105);
+  for (const extra of [party.code, party.phone, party.address].filter(Boolean)) {
+    const wrapped = pdf.splitTextToSize(pdfText(extra), (pageWidth - margin * 2) * 0.48);
+    pdf.text(wrapped, margin, leftY);
+    leftY += wrapped.length * 11;
+  }
+
+  const facts = [
+    [`${doc.title} #`, doc.number],
+    ['Date', formatDate(doc.date)],
+    ...('dueDate' in doc ? [['Due Date', doc.dueDate ? formatDate(doc.dueDate) : '-']] : []),
+    ...(doc.meta || [])
+  ];
+  let rightY = y;
+  pdf.setFontSize(9.5);
+  for (const [label, value] of facts) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(pdfText(`${label}: ${value ?? ''}`), pageWidth - margin, rightY, { align: 'right' });
+    rightY += 13;
+  }
+
+  y = Math.max(leftY, rightY) + 12;
+
+  const head = [doc.columns.map((c) => pdfText(c.label))];
+  const body = doc.rows.map((row) => doc.columns.map((c) => {
+    const v = row[c.key];
+    return pdfText(c.money ? formatMoney(v) : (v ?? ''));
+  }));
+  const columnStyles = {};
+  doc.columns.forEach((c, idx) => {
+    if (c.align === 'right') columnStyles[idx] = { halign: 'right' };
+  });
+
+  autoTable(pdf, {
+    startY: y,
+    margin: { left: margin, right: margin },
+    head,
+    body,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 5, textColor: [15, 23, 42], lineColor: [226, 232, 240], lineWidth: 0.5 },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles
+  });
+
+  let afterTableY = (pdf.lastAutoTable?.finalY || y) + 16;
+  if (afterTableY > pageHeight - 130) {
+    pdf.addPage();
+    afterTableY = 40;
+  }
+
+  // Notes (left)
+  let notesBottom = afterTableY;
+  if (doc.notes) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('NOTES', margin, notesBottom);
+    notesBottom += 12;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(71, 85, 105);
+    const noteLines = pdf.splitTextToSize(pdfText(doc.notes), (pageWidth - margin * 2) * 0.5);
+    pdf.text(noteLines, margin, notesBottom);
+    notesBottom += noteLines.length * 11;
+  }
+
+  // Totals (right)
+  let totalsBottom = afterTableY;
+  const totals = doc.totals || [];
+  if (totals.length) {
+    const labelX = pageWidth - margin - 180;
+    for (const [label, value, opts] of totals) {
+      if (opts?.strong) {
+        pdf.setDrawColor(15, 23, 42);
+        pdf.setLineWidth(1);
+        pdf.line(labelX, totalsBottom - 8, pageWidth - margin, totalsBottom - 8);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+      } else {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9.5);
+      }
+      pdf.setTextColor(15, 23, 42);
+      pdf.text(pdfText(label), labelX, totalsBottom);
+      pdf.text(pdfText(value), pageWidth - margin, totalsBottom, { align: 'right' });
+      totalsBottom += opts?.strong ? 16 : 14;
+    }
+  }
+
+  let signY = Math.max(notesBottom, totalsBottom) + 46;
+  if (signY > pageHeight - 50) {
+    pdf.addPage();
+    signY = 70;
+  }
+  const signs = doc.signs || ['Prepared by', 'Received by'];
+  signs.forEach((s, idx) => {
+    const x = idx === 0 ? margin : pageWidth - margin - 140;
+    pdf.setDrawColor(148, 163, 184);
+    pdf.setLineWidth(0.7);
+    pdf.line(x, signY, x + 140, signY);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(pdfText(s), x + 70, signY + 12, { align: 'center' });
+  });
+
+  const pageCount = pdf.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p += 1) {
+    pdf.setPage(p);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text('This is a computer-generated document.', margin, pageHeight - 18);
+    pdf.text(`Page ${p} of ${pageCount}`, pageWidth - margin, pageHeight - 18, { align: 'right' });
+  }
+
+  return pdf;
+}
+
+let previewListener = null;
+export function registerPrintPreviewListener(fn) {
+  previewListener = fn;
+  return () => { if (previewListener === fn) previewListener = null; };
+}
+
+export function executePrint(doc, orientation = 'portrait') {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
@@ -124,7 +320,7 @@ export function printDocument(doc) {
 
   const win = frame.contentWindow;
   win.document.open();
-  win.document.write(buildHtml(doc));
+  win.document.write(buildHtml(doc, orientation));
   win.document.close();
 
   // Chrome names the saved PDF after the app's own title, not the frame's, so
@@ -147,6 +343,14 @@ export function printDocument(doc) {
     win.print();
     setTimeout(cleanup, 60000); // fallback if afterprint never fires
   }, 250);
+}
+
+export function printDocument(doc) {
+  if (previewListener) {
+    previewListener(doc);
+    return;
+  }
+  executePrint(doc);
 }
 
 /* The customer/supplier block from a populated party document. */

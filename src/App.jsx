@@ -25,6 +25,7 @@ import JournalEntryView from './pages/JournalEntryView';
 import JournalEntryPage from './pages/JournalEntryPage';
 import ProjectSettlements from './pages/ProjectSettlements';
 import ProjectReport from './pages/reports/ProjectReport';
+import PrintPreviewModal from './components/PrintPreviewModal';
 import Users from './pages/Users';
 import Companies from './pages/Companies';
 
@@ -61,6 +62,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
+      <PrintPreviewModal />
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />

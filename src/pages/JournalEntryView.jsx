@@ -6,6 +6,7 @@ import PageLayout from '../components/PageLayout';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney } from '../components/ui';
+import { printDocument } from '../components/printDocument';
 
 /*
   Full page for one journal voucher — reached from the Journal list and from
@@ -48,7 +49,34 @@ export default function JournalEntryView() {
       title={entry ? `Journal Entry ${entry.entryNumber}` : 'Journal Entry'}
       actions={entry && (
         <>
-          <button type="button" onClick={() => window.print()} className="btn-ghost inline-flex items-center gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => printDocument({
+              title: 'Journal Voucher',
+              number: entry.entryNumber,
+              date: entry.date,
+              party: { label: 'Source', name: entry.sourceType || 'MANUAL' },
+              meta: [['Reference', entry.reference || '—']],
+              columns: [
+                { label: 'Account', key: 'account' },
+                { label: 'Memo', key: 'memo' },
+                { label: 'Debit', key: 'debit', align: 'right', money: true },
+                { label: 'Credit', key: 'credit', align: 'right', money: true }
+              ],
+              rows: (entry.lines || []).map((l) => ({
+                account: l.account ? `${l.account.code} — ${l.account.name}` : '',
+                memo: l.memo || '',
+                debit: l.debit || 0,
+                credit: l.credit || 0
+              })),
+              totals: [
+                ['Total Debit', money(entry.totalDebit), { strong: true }],
+                ['Total Credit', money(entry.totalCredit), { strong: true }]
+              ],
+              notes: entry.narration
+            })}
+            className="btn-ghost inline-flex items-center gap-2 print:hidden"
+          >
             <Printer size={15} /> Print
           </button>
           {isAdmin && (
