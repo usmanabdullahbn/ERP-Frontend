@@ -42,7 +42,7 @@ export default function ProjectSettlements({ mode }) {
   const [date, setDate] = useState(todayLocalISODate());
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
-  const [maalInvoice, setMaalInvoice] = useState('');
+  const [maalInvoices, setMaalInvoices] = useState(['']);
   const [dealAmount, setDealAmount] = useState('');
 
   // Outsource Fabricator state
@@ -190,7 +190,13 @@ export default function ProjectSettlements({ mode }) {
           setDate(d.date ? new Date(d.date).toISOString().slice(0, 10) : todayLocalISODate());
           setReference(d.reference || '');
           setNotes(d.notes || '');
-          setMaalInvoice(d.maalInvoice?._id || d.maalInvoice || '');
+          const loadedInvs =
+            Array.isArray(d.maalInvoices) && d.maalInvoices.length > 0
+              ? d.maalInvoices.map((inv) => inv?._id || inv).filter(Boolean)
+              : d.maalInvoice
+                ? [d.maalInvoice?._id || d.maalInvoice]
+                : [''];
+          setMaalInvoices(loadedInvs.length > 0 ? loadedInvs : ['']);
           setDealAmount(d.dealAmount != null ? String(d.dealAmount) : '');
           setFabricatorName(d.fabricatorName || '');
           if (d.fabricatorAccount) setFabricatorAccount(d.fabricatorAccount?._id || d.fabricatorAccount);
@@ -234,18 +240,40 @@ export default function ProjectSettlements({ mode }) {
   );
 
   const isOutsource = projectType === 'OUTSOURCE';
-  const selectedInvoice = availableInvoices.find((inv) => inv._id === maalInvoice) || null;
-  const maalAmount = selectedInvoice ? Number(selectedInvoice.grandTotal || 0) : 0;
+  const selectedInvoiceIds = useMemo(
+    () => [...new Set((maalInvoices || []).filter(Boolean))],
+    [maalInvoices]
+  );
+  const selectedInvoiceDocs = useMemo(
+    () => selectedInvoiceIds.map((invId) => availableInvoices.find((inv) => inv._id === invId)).filter(Boolean),
+    [selectedInvoiceIds, availableInvoices]
+  );
 
-  // When editing an existing project, add back what this project itself settled on that invoice
-  const alreadySettledByThisDoc =
-    isEditMode && editingDoc && (editingDoc.maalInvoice?._id || editingDoc.maalInvoice) === maalInvoice
-      ? Number(editingDoc.maalSettledByProject || 0)
-      : 0;
+  const maalAmount = selectedInvoiceDocs.reduce((s, inv) => s + Number(inv.grandTotal || 0), 0);
 
-  const maalDue = selectedInvoice
-    ? Math.max(0, maalAmount - Math.max(0, Number(selectedInvoice.amountPaid || 0) - alreadySettledByThisDoc))
-    : 0;
+  // Map how much this project itself settled on each invoice when editing
+  const settledByThisDocMap = useMemo(() => {
+    const map = new Map();
+    if (isEditMode && editingDoc) {
+      if (Array.isArray(editingDoc.maalAllocations) && editingDoc.maalAllocations.length > 0) {
+        for (const alloc of editingDoc.maalAllocations) {
+          const k = String(alloc.invoice?._id || alloc.invoice || '');
+          if (k) map.set(k, Number(alloc.settledAmount || 0));
+        }
+      } else if (editingDoc.maalInvoice) {
+        const k = String(editingDoc.maalInvoice?._id || editingDoc.maalInvoice);
+        map.set(k, Number(editingDoc.maalSettledByProject || 0));
+      }
+    }
+    return map;
+  }, [isEditMode, editingDoc]);
+
+  const maalDue = selectedInvoiceDocs.reduce((s, inv) => {
+    const invTotal = Number(inv.grandTotal || 0);
+    const alreadyByThis = settledByThisDocMap.get(String(inv._id)) || 0;
+    const paidByOthers = Math.max(0, Number(inv.amountPaid || 0) - alreadyByThis);
+    return s + Math.max(0, invTotal - paidByOthers);
+  }, 0);
 
   const dealNum = Number(dealAmount) || 0;
   const projectCharges = Math.max(0, dealNum - maalAmount);
@@ -264,7 +292,7 @@ export default function ProjectSettlements({ mode }) {
   const totalReceived = cashNum + bankNum;
 
   const maalPaidNow = isOutsource
-    ? (selectedInvoice ? maalDue : 0)
+    ? (selectedInvoiceDocs.length > 0 ? maalDue : 0)
     : Math.min(maalDue, totalReceived);
 
   const remainingClientBalance = isOutsource
@@ -332,7 +360,8 @@ export default function ProjectSettlements({ mode }) {
         date,
         reference,
         notes,
-        maalInvoice: maalInvoice || undefined,
+        maalInvoice: selectedInvoiceIds[0] || undefined,
+        maalInvoices: selectedInvoiceIds,
         dealAmount: dealNum,
         fabricatorName: isOutsource ? fabricatorName : undefined,
         fabricatorAccount: isOutsource ? fabricatorAccount : undefined,
@@ -676,12 +705,18 @@ export default function ProjectSettlements({ mode }) {
 
         <div class="info-card">
           <div class="cap">1. Maal Sales Revenue (Alag)</div>
-          ${
-            d.maalInvoice
-              ? `<div class="val-teal num">${esc(d.maalInvoice.invoiceNumber)} — ${esc(money(d.maalInvoiceAmount))}</div>
-                 <div class="sub-line">Billed to: ${esc(d.maalInvoice.customer?.name || d.customer?.name || '')} · Status: ${esc(d.maalInvoice.status || 'PAID')}</div>`
-              : `<div class="val-main" style="color:#64748b;font-weight:500">No Linked Maal Invoice (0.00)</div>`
-          }
+          ${(() => {
+            const mInvs = (Array.isArray(d.maalInvoices) && d.maalInvoices.length > 0 ? d.maalInvoices : d.maalInvoice ? [d.maalInvoice] : []).filter(Boolean);
+            if (mInvs.length === 0) return `<div class="val-main" style="color:#64748b;font-weight:500">No Linked Maal Invoice (0.00)</div>`;
+            return mInvs
+              .map(
+                (inv) =>
+                  `<div class="val-teal num">${esc(inv.invoiceNumber)} — ${esc(money(inv.grandTotal ?? d.maalInvoiceAmount))}</div>
+                   <div class="sub-line">Billed to: ${esc(inv.customer?.name || d.customer?.name || '')} · Status: ${esc(inv.status || 'PAID')}</div>`
+              )
+              .join('<div style="margin-top:4px"></div>') +
+              (mInvs.length > 1 ? `<div class="sub-line" style="font-weight:700;color:#0f172a;margin-top:6px">Total Maal: ${esc(money(d.maalInvoiceAmount))}</div>` : '');
+          })()}
         </div>
 
         <div class="info-card">
@@ -845,7 +880,16 @@ export default function ProjectSettlements({ mode }) {
     },
     { key: 'date', label: 'Date', render: (r) => new Date(r.date).toLocaleDateString() },
     { key: 'customer', label: 'Client', render: (r) => r.customer?.name },
-    { key: 'maalInvoice', label: 'Maal Inv', render: (r) => r.maalInvoice ? `${r.maalInvoice.invoiceNumber} (${money(r.maalInvoiceAmount)})` : '—' },
+    {
+      key: 'maalInvoice',
+      label: 'Maal Inv',
+      render: (r) => {
+        const invs = (Array.isArray(r.maalInvoices) && r.maalInvoices.length > 0 ? r.maalInvoices : r.maalInvoice ? [r.maalInvoice] : []).filter(Boolean);
+        if (invs.length === 0) return '—';
+        const nums = invs.map((i) => i.invoiceNumber).filter(Boolean).join(', ');
+        return `${nums} (${money(r.maalInvoiceAmount)})`;
+      }
+    },
     { key: 'dealAmount', label: 'Client Deal', align: 'right', render: (r) => money(r.dealAmount) },
     { key: 'projectCharges', label: 'Project Rev', align: 'right', render: (r) => money(r.projectCharges) },
     { key: 'netProfit', label: 'Commission (4500)', align: 'right', render: (r) => <span className="text-emerald-700 font-medium">{money(r.netProfit)}</span> },
@@ -999,18 +1043,36 @@ export default function ProjectSettlements({ mode }) {
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                     <p className="text-[11px] uppercase tracking-wider text-slate-400">1. Maal Sales Revenue (Alag)</p>
-                    {detail.maalInvoice ? (
-                      <>
-                        <Link to={`/invoices/${detail.maalInvoice._id}`} className="font-figures font-semibold text-ledger-teal hover:underline mt-0.5 inline-block">
-                          {detail.maalInvoice.invoiceNumber} — {money(detail.maalInvoiceAmount)}
-                        </Link>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Billed to: {detail.maalInvoice.customer?.name || detail.customer?.name} · Status: {detail.maalInvoice.status}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-slate-500 mt-0.5">No Linked Maal Invoice (Rs. 0.00)</p>
-                    )}
+                    {(() => {
+                      const invs = (Array.isArray(detail.maalInvoices) && detail.maalInvoices.length > 0
+                        ? detail.maalInvoices
+                        : detail.maalInvoice
+                          ? [detail.maalInvoice]
+                          : []
+                      ).filter(Boolean);
+                      if (invs.length === 0) {
+                        return <p className="text-sm text-slate-500 mt-0.5">No Linked Maal Invoice (Rs. 0.00)</p>;
+                      }
+                      return (
+                        <div className="space-y-1.5 mt-1">
+                          {invs.map((inv) => (
+                            <div key={inv._id}>
+                              <Link to={`/invoices/${inv._id}`} className="font-figures font-semibold text-ledger-teal hover:underline inline-block">
+                                {inv.invoiceNumber} — {money(inv.grandTotal ?? detail.maalInvoiceAmount)}
+                              </Link>
+                              <p className="text-xs text-slate-500">
+                                Billed to: {inv.customer?.name || detail.customer?.name} · Status: {inv.status}
+                              </p>
+                            </div>
+                          ))}
+                          {invs.length > 1 && (
+                            <p className="text-xs font-semibold text-ink-900 pt-1 border-t border-slate-200 font-figures">
+                              Total Maal Deducted: {money(detail.maalInvoiceAmount)}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
@@ -1255,28 +1317,69 @@ export default function ProjectSettlements({ mode }) {
               </div>
             </div>
 
-            {/* SECTION 2: LINKED MAAL INVOICE (NO CUSTOMER RESTRICTION!) */}
+            {/* SECTION 2: LINKED MAAL INVOICE(S) (NO CUSTOMER RESTRICTION!) */}
             <div className="border-t border-slate-200 pt-4 space-y-3">
-              <h3 className="text-sm font-semibold text-ink-800 flex items-center gap-1.5">
-                <Building2 size={15} className="text-ledger-teal" /> 2. Maal Invoice & Revenue Separation (Maal vs Project)
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-ink-800 flex items-center gap-1.5">
+                  <Building2 size={15} className="text-ledger-teal" /> 2. Maal Invoice(s) & Revenue Separation (Maal vs Project)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setMaalInvoices((prev) => [...prev, ''])}
+                  className="text-xs text-ledger-teal hover:underline font-semibold inline-flex items-center gap-1"
+                >
+                  <Plus size={13} /> Add Another Maal Invoice (Bill Adjust)
+                </button>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                <label className="block sm:col-span-2">
-                  <span className="block text-xs font-medium text-slate-600 mb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                <div className="sm:col-span-2 space-y-2">
+                  <span className="block text-xs font-medium text-slate-600">
                     {isOutsource
-                      ? 'Maal Invoice Given to Fabricator (e.g. INV-000020 in Rashid’s name)'
-                      : 'Maal Invoice Cut for Order (e.g. INV-000013)'}
+                      ? 'Maal Invoice(s) Given to Fabricator (e.g. INV-000020 + any extra bill in Rashid’s name)'
+                      : 'Maal Invoice(s) Cut for Order (e.g. INV-000013)'}
                   </span>
-                  <select value={maalInvoice} onChange={(e) => setMaalInvoice(e.target.value)} className="input">
-                    <option value="">None (No Linked Maal Invoice)</option>
-                    {availableInvoices.map((inv) => (
-                      <option key={inv._id} value={inv._id}>
-                        {inv.invoiceNumber} — {inv.customer?.name || 'Customer'} — Total: {money(inv.grandTotal)} (Due: {money(Math.max(0, (inv.grandTotal || 0) - (inv.amountPaid || 0)))}) [{inv.status}]
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {maalInvoices.map((invId, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <select
+                        value={invId}
+                        onChange={(e) => {
+                          const next = [...maalInvoices];
+                          next[idx] = e.target.value;
+                          setMaalInvoices(next);
+                        }}
+                        className="input flex-1"
+                      >
+                        <option value="">
+                          {idx === 0 ? 'None (No Linked Maal Invoice)' : `Select Maal Invoice #${idx + 1}…`}
+                        </option>
+                        {availableInvoices.map((inv) => {
+                          const alreadyByThis = settledByThisDocMap.get(String(inv._id)) || 0;
+                          const effDue = Math.max(0, (inv.grandTotal || 0) - Math.max(0, (inv.amountPaid || 0) - alreadyByThis));
+                          return (
+                            <option
+                              key={inv._id}
+                              value={inv._id}
+                              disabled={selectedInvoiceIds.includes(inv._id) && inv._id !== invId}
+                            >
+                              {inv.invoiceNumber} — {inv.customer?.name || 'Customer'} — Total: {money(inv.grandTotal)} (Due: {money(effDue)}) [{inv.status}]
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {maalInvoices.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setMaalInvoices(maalInvoices.filter((_, i) => i !== idx))}
+                          className="text-slate-400 hover:text-ledger-rose p-1.5"
+                          title="Remove this Maal Invoice"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
 
                 <label className="block">
                   <span className="block text-xs font-medium text-slate-600 mb-1">Notes (Optional)</span>
@@ -1298,7 +1401,10 @@ export default function ProjectSettlements({ mode }) {
                 <div>
                   <p className="text-xs text-slate-500">Maal Sales Revenue (4000 — Alag)</p>
                   <p className="font-figures font-semibold text-ledger-teal">
-                    {money(maalAmount)} {selectedInvoice ? `(${selectedInvoice.invoiceNumber})` : ''}
+                    {money(maalAmount)}{' '}
+                    {selectedInvoiceDocs.length > 0
+                      ? `(${selectedInvoiceDocs.map((i) => i.invoiceNumber).join(' + ')})`
+                      : ''}
                   </p>
                 </div>
                 <div>

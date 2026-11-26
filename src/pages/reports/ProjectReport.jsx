@@ -57,12 +57,18 @@ export default function ProjectReport() {
     { key: 'fabricatorBalanceDue', label: 'Fabricator Payable', align: 'right', format: 'money' }
   ];
 
+  const fmtMaalInvs = (r) => {
+    const invs = (Array.isArray(r.maalInvoices) && r.maalInvoices.length > 0 ? r.maalInvoices : r.maalInvoice ? [r.maalInvoice] : []).filter(Boolean);
+    if (invs.length === 0) return '—';
+    return invs.map((i) => i.invoiceNumber).filter(Boolean).join(', ');
+  };
+
   const exportRows = rows.map((r) => ({
     projectNumber: r.projectNumber,
     projectType: r.projectType === 'OUTSOURCE' ? 'Outsource' : 'In-House',
     date: r.date,
     customer: r.customer?.name || '',
-    maalInvoice: r.maalInvoice?.invoiceNumber || '—',
+    maalInvoice: fmtMaalInvs(r),
     dealAmount: r.dealAmount,
     maalInvoiceAmount: r.maalInvoiceAmount || 0,
     projectCharges: r.projectCharges,
@@ -162,7 +168,7 @@ export default function ProjectReport() {
                     </td>
                     <td className="px-4 py-2.5">{new Date(r.date).toLocaleDateString()}</td>
                     <td className="px-4 py-2.5">{r.customer?.name}</td>
-                    <td className="px-4 py-2.5 font-figures">{r.maalInvoice?.invoiceNumber || '—'}</td>
+                    <td className="px-4 py-2.5 font-figures">{fmtMaalInvs(r)}</td>
                     <td className="px-4 py-2.5 text-right font-figures">{money(r.dealAmount)}</td>
                     <td className="px-4 py-2.5 text-right font-figures text-ledger-teal">{money(r.maalInvoiceAmount)}</td>
                     <td className="px-4 py-2.5 text-right font-figures text-indigo-700">{money(r.projectCharges)}</td>
