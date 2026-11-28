@@ -7,6 +7,14 @@ import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 
+const COMPANY_FEATURES = [
+  {
+    key: 'project_deals',
+    label: 'Project Deals & Settlements',
+    description: 'Enable separate Project Deals, Fabrication settlements, and Project Report for this company.'
+  }
+];
+
 const emptyCompanyForm = {
   name: '',
   code: '',
@@ -16,6 +24,7 @@ const emptyCompanyForm = {
   address: '',
   taxNumber: '',
   whatsappPhoneNumberId: '',
+  features: [],
   adminName: '',
   adminEmail: '',
   adminPassword: '',
@@ -65,6 +74,7 @@ export default function Companies() {
       address: company.address || '',
       taxNumber: company.taxNumber || '',
       whatsappPhoneNumberId: company.whatsappPhoneNumberId || '',
+      features: Array.isArray(company.features) ? company.features : [],
       adminName: '',
       adminEmail: '',
       adminPassword: '',
@@ -91,6 +101,7 @@ export default function Companies() {
           address: form.address,
           taxNumber: form.taxNumber,
           whatsappPhoneNumberId: form.whatsappPhoneNumberId,
+          features: form.features,
           isActive: form.isActive
         });
       } else {
@@ -336,6 +347,37 @@ export default function Companies() {
               placeholder="Leave blank to use shared WhatsApp bot"
               className="input font-mono text-xs"
             />
+          </div>
+
+          <div className="border-t border-slate-200 pt-3">
+            <p className="text-xs font-semibold text-ink-800 mb-2">Additional Features</p>
+            <div className="space-y-2">
+              {COMPANY_FEATURES.map((feat) => {
+                const enabled = (form.features || []).includes(feat.key);
+                return (
+                  <label
+                    key={feat.key}
+                    className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 cursor-pointer hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...new Set([...(form.features || []), feat.key])]
+                          : (form.features || []).filter((k) => k !== feat.key);
+                        setForm({ ...form, features: next });
+                      }}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-ink-900">{feat.label}</span>
+                      <span className="block text-xs text-slate-500">{feat.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {!editingCompany && (

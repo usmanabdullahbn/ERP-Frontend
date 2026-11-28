@@ -18,7 +18,7 @@ const SECTIONS = [
       { to: '/orders', label: 'Orders' },
       { to: '/invoices', label: 'Invoices' },
       { to: '/receipts', label: 'Receipts' },
-      { to: '/projects', label: 'Project Deals' }
+      { to: '/projects', label: 'Project Deals', feature: 'project_deals' }
     ]
   },
   {
@@ -70,7 +70,7 @@ const SECTIONS = [
       { to: '/reports/supplier-ledger', label: 'Supplier Ledger' },
       { to: '/reports/aged-receivables', label: 'Aged Receivables' },
       { to: '/reports/aged-payables', label: 'Aged Payables' },
-      { to: '/reports/projects', label: 'Project Report' }
+      { to: '/reports/projects', label: 'Project Report', feature: 'project_deals' }
     ]
   },
   {
@@ -84,9 +84,11 @@ const SECTIONS = [
 ];
 
 function Section({ section, onNavigate }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasFeature } = useAuth();
   const [open, setOpen] = useState(true);
   if (section.perm && !hasPermission(...section.perm)) return null;
+  const visibleItems = section.items.filter((item) => !item.feature || hasFeature(item.feature));
+  if (!visibleItems.length) return null;
 
   return (
     <div className="mb-1">
@@ -99,7 +101,7 @@ function Section({ section, onNavigate }) {
       </button>
       {open && (
         <div className="flex flex-col gap-0.5">
-          {section.items.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

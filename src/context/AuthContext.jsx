@@ -175,6 +175,11 @@ export function AuthProvider({ children }) {
     [user]
   );
 
+  const hasFeature = useCallback(
+    (feature) => !feature || (user?.company?.features || []).includes(feature),
+    [user]
+  );
+
   // True if any assigned role is named "Admin" or has the '*' wildcard permission
   const isAdmin = (user?.roles || []).some(
     (r) => r.name?.toLowerCase() === 'admin' || (r.permissions || []).includes('*')
@@ -191,6 +196,7 @@ export function AuthProvider({ children }) {
         refreshUser,
         loading,
         hasPermission,
+        hasFeature,
         isAdmin
       }}
     >
